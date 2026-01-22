@@ -1675,12 +1675,14 @@ export type NavbarItem = ActionDefinition | typeof NavbarDivider;
 
 // Navbar action groups define which actions appear in each section
 export const NavbarActionGroups = {
-  left: [Actions.ArchiveWorkspace] as NavbarItem[],
+  left: [
+    Actions.ToggleLeftSidebar,
+    Actions.ArchiveWorkspace,
+  ] as NavbarItem[],
   right: [
     Actions.ToggleDiffViewMode,
     Actions.ToggleAllDiffs,
     NavbarDivider,
-    Actions.ToggleLeftSidebar,
     Actions.ToggleLeftMainPanel,
     Actions.ToggleChangesMode,
     Actions.ToggleLogsMode,
