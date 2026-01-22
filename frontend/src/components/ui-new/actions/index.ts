@@ -56,6 +56,7 @@ import {
   LinkIcon,
   ArrowBendUpRightIcon,
   ProhibitIcon,
+  StopIcon,
 } from '@phosphor-icons/react';
 import { useDiffViewStore } from '@/stores/useDiffViewStore';
 import {
@@ -63,7 +64,7 @@ import {
   RIGHT_MAIN_PANEL_MODES,
 } from '@/stores/useUiPreferencesStore';
 
-import { attemptsApi, repoApi } from '@/lib/api';
+import { attemptsApi, tasksApi, repoApi, projectsApi } from '@/lib/api';
 import { bulkUpdateIssues } from '@/lib/remoteApi';
 import { attemptKeys } from '@/hooks/useAttempt';
 import { workspaceSummaryKeys } from '@/components/ui-new/hooks/useWorkspaces';
@@ -441,6 +442,29 @@ export const Actions = {
       // Select next workspace after successful archive
       if (!wasArchived && nextWorkspaceId) {
         ctx.selectWorkspace(nextWorkspaceId);
+      }
+    },
+  },
+
+  StopAllDevServers: {
+    id: 'stop-all-dev-servers',
+    label: 'Stop All Dev Servers',
+    icon: StopIcon,
+    requiresTarget: ActionTargetType.NONE,
+    isVisible: (ctx) => ctx.hasWorkspace && ctx.runningDevServers.length > 0,
+    execute: async (ctx) => {
+      if (!ctx.currentWorkspaceId) return;
+
+      const workspace = await getWorkspace(
+        ctx.queryClient,
+        ctx.currentWorkspaceId
+      );
+      if (!workspace?.task_id) return;
+
+      const task = await tasksApi.getById(workspace.task_id);
+      if (task?.project_id) {
+        await projectsApi.stopAllDevServers(task.project_id);
+        ctx.queryClient.invalidateQueries({ queryKey: attemptKeys.all });
       }
     },
   },
@@ -1677,6 +1701,7 @@ export type NavbarItem = ActionDefinition | typeof NavbarDivider;
 export const NavbarActionGroups = {
   left: [
     Actions.ToggleLeftSidebar,
+    Actions.StopAllDevServers,
     Actions.ArchiveWorkspace,
   ] as NavbarItem[],
   right: [
