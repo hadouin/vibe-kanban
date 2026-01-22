@@ -130,7 +130,8 @@
     "tryAgain": "重試"
   },
   "navbar": {
-    "tryNewUI": "試用新界面"
+    "tryNewUI": "試用新界面",
+    "stopAllDevServers": "停止所有開發伺服器"
   },
   "toolbar": {
     "sortBy": "排序方式",

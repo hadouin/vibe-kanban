@@ -107,7 +107,8 @@
     "migrate": "迁移"
   },
   "navbar": {
-    "tryNewUI": "试用新界面"
+    "tryNewUI": "试用新界面",
+    "stopAllDevServers": "停止所有开发服务器"
   },
   "ok": "确定",
   "error": "错误",

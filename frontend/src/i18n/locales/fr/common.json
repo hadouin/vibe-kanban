@@ -107,7 +107,8 @@
     "migrate": "Migrer"
   },
   "navbar": {
-    "tryNewUI": "essayer la nouvelle interface"
+    "tryNewUI": "essayer la nouvelle interface",
+    "stopAllDevServers": "Arrêter tous les serveurs de développement"
   },
   "ok": "OK",
   "error": "Erreur",
