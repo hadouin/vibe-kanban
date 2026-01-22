@@ -1197,7 +1197,7 @@ pub async fn start_dev_server(
 ) -> Result<ResponseJson<ApiResponse<Vec<ExecutionProcess>>>, ApiError> {
     let pool = &deployment.db().pool;
 
-    // Stop any existing dev servers for this workspace
+    // Stop any existing dev servers for this workspace only (allows multiple workspaces to have dev servers)
     let existing_dev_servers =
         match ExecutionProcess::find_running_dev_servers_by_workspace(pool, workspace.id).await {
             Ok(servers) => servers,
@@ -1279,6 +1279,10 @@ pub async fn start_dev_server(
             .await?;
         execution_processes.push(execution_process);
     }
+
+    // Get parent task and project for analytics
+    let task = workspace.parent_task(pool).await?.ok_or(SqlxError::RowNotFound)?;
+    let project = task.parent_project(pool).await?.ok_or(SqlxError::RowNotFound)?;
 
     deployment
         .track_if_analytics_allowed(

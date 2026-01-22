@@ -248,6 +248,8 @@ export type EntityReport = { total: number, migrated: number, failed: number, sk
 
 export type EntityError = { local_id: string, error: string, };
 
+export type StopAllDevServersResponse = { stopped_count: number, };
+
 export type RegisterRepoRequest = { path: string, display_name: string | null, };
 
 export type InitRepoRequest = { parent_path: string, folder_name: string, };

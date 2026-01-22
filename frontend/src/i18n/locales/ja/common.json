@@ -107,7 +107,8 @@
     "migrate": "移行"
   },
   "navbar": {
-    "tryNewUI": "新しいUIを試す"
+    "tryNewUI": "新しいUIを試す",
+    "stopAllDevServers": "すべての開発サーバーを停止"
   },
   "ok": "OK",
   "error": "エラー",
