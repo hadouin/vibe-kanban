@@ -142,7 +142,17 @@ pub async fn update_workspace(
     let pool = &deployment.db().pool;
     let is_archiving = request.archived == Some(true) && !workspace.archived;
 
-    // Stop dev servers if archiving (transitioning from not archived to archived)
+    // Archive first, then stop dev servers
+    Workspace::update(
+        pool,
+        workspace.id,
+        request.archived,
+        request.pinned,
+        request.name.as_deref(),
+    )
+    .await?;
+
+    // Stop dev servers after archiving
     if is_archiving {
         let running_dev_servers =
             ExecutionProcess::find_running_dev_servers_by_workspace(pool, workspace.id).await?;
@@ -162,14 +172,6 @@ pub async fn update_workspace(
         }
     }
 
-    Workspace::update(
-        pool,
-        workspace.id,
-        request.archived,
-        request.pinned,
-        request.name.as_deref(),
-    )
-    .await?;
     let updated = Workspace::find_by_id(pool, workspace.id)
         .await?
         .ok_or(WorkspaceError::WorkspaceNotFound)?;
