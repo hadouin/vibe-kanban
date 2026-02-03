@@ -11,8 +11,8 @@ use db::{
     models::{
         coding_agent_turn::{CodingAgentTurn, CreateCodingAgentTurn},
         execution_process::{
-            CreateExecutionProcess, ExecutionContext, ExecutionProcess, ExecutionProcessRunReason,
-            ExecutionProcessStatus,
+            CreateExecutionProcess, ExecutionContext, ExecutionProcess, ExecutionProcessError,
+            ExecutionProcessRunReason, ExecutionProcessStatus,
         },
         execution_process_logs::ExecutionProcessLogs,
         execution_process_repo_state::{
@@ -39,7 +39,9 @@ use executors::{
     logs::{NormalizedEntry, NormalizedEntryError, NormalizedEntryType, utils::ConversationPatch},
     profile::ExecutorProfileId,
 };
-use futures::{StreamExt, future};
+use futures::{StreamExt, future, stream::BoxStream};
+use git::{GitService, GitServiceError};
+use json_patch::Patch;
 use sqlx::Error as SqlxError;
 use thiserror::Error;
 use tokio::{sync::RwLock, task::JoinHandle};
@@ -51,9 +53,7 @@ use utils::{
 use uuid::Uuid;
 
 use crate::services::{
-    git::{GitService, GitServiceError},
-    notification::NotificationService,
-    workspace_manager::WorkspaceError as WorkspaceManagerError,
+    notification::NotificationService, workspace_manager::WorkspaceError as WorkspaceManagerError,
     worktree_manager::WorktreeError,
 };
 pub type ContainerRef = String;
@@ -74,6 +74,8 @@ pub enum ContainerError {
     WorkspaceManager(#[from] WorkspaceManagerError),
     #[error(transparent)]
     Session(#[from] SessionError),
+    #[error(transparent)]
+    ExecutionProcess(#[from] ExecutionProcessError),
     #[error("Io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Failed to kill process: {0}")]
@@ -93,6 +95,63 @@ pub trait ContainerService {
     fn notification_service(&self) -> &NotificationService;
 
     fn workspace_to_current_dir(&self, workspace: &Workspace) -> PathBuf;
+
+    async fn available_agent_slash_commands(
+        &self,
+        executor_profile_id: ExecutorProfileId,
+        workspace_id: Option<Uuid>,
+        repo_id: Option<Uuid>,
+    ) -> Result<Option<BoxStream<'static, Patch>>, ContainerError> {
+        let agent_workdir = if let Some(workspace_id) = workspace_id {
+            let workspace = Workspace::find_by_id(&self.db().pool, workspace_id)
+                .await?
+                .ok_or(SqlxError::RowNotFound)?;
+
+            let container_ref = match workspace.container_ref.as_deref() {
+                Some(container_ref) if !container_ref.is_empty() => container_ref,
+                _ => &self.ensure_container_exists(&workspace).await?,
+            };
+
+            if container_ref.is_empty() {
+                return Err(ContainerError::Other(anyhow!("Workspace path is empty")));
+            }
+
+            let workspace_path = PathBuf::from(container_ref);
+            match workspace.agent_working_dir.as_deref() {
+                Some(dir) if !dir.is_empty() => Some(workspace_path.join(dir)),
+                _ => Some(workspace_path),
+            }
+        } else if let Some(repo_id) = repo_id {
+            Repo::find_by_id(&self.db().pool, repo_id)
+                .await
+                .ok()
+                .flatten()
+                .map(|repo| repo.path)
+        } else {
+            None
+        }
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+        #[cfg(feature = "qa-mode")]
+        {
+            let _ = executor_profile_id;
+            let agent = QaMockExecutor;
+            let stream = agent.available_slash_commands(&agent_workdir).await?;
+            return Ok(Some(stream));
+        }
+        #[cfg(not(feature = "qa-mode"))]
+        {
+            let executor =
+                ExecutorConfigs::get_cached().get_coding_agent_or_default(&executor_profile_id);
+
+            let stream = executor.available_slash_commands(&agent_workdir).await?;
+            Ok(Some(stream))
+        }
+    }
+
+    async fn store_db_stream_handle(&self, id: Uuid, handle: JoinHandle<()>);
+
+    async fn take_db_stream_handle(&self, id: &Uuid) -> Option<JoinHandle<()>>;
 
     async fn create(&self, workspace: &Workspace) -> Result<ContainerRef, ContainerError>;
 
@@ -830,6 +889,22 @@ pub trait ContainerService {
                                 );
                             }
                         }
+                        LogMsg::MessageId(agent_message_id) => {
+                            if let Err(e) = CodingAgentTurn::update_agent_message_id(
+                                &db.pool,
+                                execution_id,
+                                agent_message_id,
+                            )
+                            .await
+                            {
+                                tracing::error!(
+                                    "Failed to update agent_message_id {} for execution process {}: {}",
+                                    agent_message_id,
+                                    execution_id,
+                                    e
+                                );
+                            }
+                        }
                         LogMsg::Finished => {
                             break;
                         }
@@ -1117,7 +1192,9 @@ pub trait ContainerService {
             }
         }
 
-        self.spawn_stream_raw_logs_to_db(&execution_process.id);
+        let db_stream_handle = self.spawn_stream_raw_logs_to_db(&execution_process.id);
+        self.store_db_stream_handle(execution_process.id, db_stream_handle)
+            .await;
         Ok(execution_process)
     }
 

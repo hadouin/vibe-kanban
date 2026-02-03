@@ -1,11 +1,11 @@
 import { useMemo, useCallback } from 'react';
-import { SplitSide } from '@git-diff-view/react';
 import { usePrComments } from './usePrComments';
 import {
   usePersistedExpanded,
   PERSIST_KEYS,
 } from '@/stores/useUiPreferencesStore';
 import type { UnifiedPrComment } from 'shared/types';
+import { DiffSide } from '@/types/diff';
 
 /**
  * Normalized GitHub comment for diff view display
@@ -18,7 +18,7 @@ export interface NormalizedGitHubComment {
   url: string | null;
   filePath: string;
   lineNumber: number;
-  side: SplitSide;
+  side: DiffSide;
   diffHunk: string | null;
 }
 
@@ -35,6 +35,8 @@ interface UseGitHubCommentsResult {
   setShowGitHubComments: (show: boolean) => void;
   getGitHubCommentsForFile: (filePath: string) => NormalizedGitHubComment[];
   getGitHubCommentCountForFile: (filePath: string) => number;
+  getFilesWithGitHubComments: () => string[];
+  getFirstCommentLineForFile: (filePath: string) => number | null;
 }
 
 export function useGitHubComments({
@@ -75,7 +77,7 @@ export function useGitHubComments({
         filePath: comment.path,
         lineNumber: Number(comment.line),
         // Use side from API: "LEFT" = old/deleted side, "RIGHT" = new/added side (default)
-        side: comment.side === 'LEFT' ? SplitSide.old : SplitSide.new,
+        side: comment.side === 'LEFT' ? DiffSide.Old : DiffSide.New,
         diffHunk: comment.diff_hunk,
       });
     }
@@ -111,6 +113,27 @@ export function useGitHubComments({
     [normalizedComments, pathMatches]
   );
 
+  // Get list of unique file paths that have GitHub comments
+  const getFilesWithGitHubComments = useCallback((): string[] => {
+    const filesSet = new Set<string>();
+    for (const comment of normalizedComments) {
+      filesSet.add(comment.filePath);
+    }
+    return Array.from(filesSet);
+  }, [normalizedComments]);
+
+  // Get the first (lowest line number) comment's line for a file
+  const getFirstCommentLineForFile = useCallback(
+    (filePath: string): number | null => {
+      const comments = normalizedComments.filter((c) =>
+        pathMatches(filePath, c.filePath)
+      );
+      if (comments.length === 0) return null;
+      return Math.min(...comments.map((c) => c.lineNumber));
+    },
+    [normalizedComments, pathMatches]
+  );
+
   return {
     gitHubComments,
     isGitHubCommentsLoading,
@@ -118,5 +141,7 @@ export function useGitHubComments({
     setShowGitHubComments,
     getGitHubCommentsForFile,
     getGitHubCommentCountForFile,
+    getFilesWithGitHubComments,
+    getFirstCommentLineForFile,
   };
 }

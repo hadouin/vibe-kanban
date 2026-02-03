@@ -13,10 +13,8 @@ export interface RepoInfo {
   name: string;
   targetBranch: string;
   commitsAhead: number;
+  commitsBehind: number;
   remoteCommitsAhead?: number;
-  filesChanged: number;
-  linesAdded: number;
-  linesRemoved: number;
   prNumber?: number;
   prUrl?: string;
   prStatus?: 'open' | 'merged' | 'closed' | 'unknown';
@@ -24,6 +22,7 @@ export interface RepoInfo {
   isPushPending?: boolean;
   isPushSuccess?: boolean;
   isPushError?: boolean;
+  isTargetRemote?: boolean;
 }
 
 interface GitPanelProps {
@@ -32,9 +31,7 @@ interface GitPanelProps {
   onWorkingBranchNameChange: (name: string) => void;
   onActionsClick?: (repoId: string, action: RepoAction) => void;
   onPushClick?: (repoId: string) => void;
-  onOpenInEditor?: (repoId: string) => void;
-  onCopyPath?: (repoId: string) => void;
-  onOpenSettings?: (repoId: string) => void;
+  onMoreClick?: (repoId: string) => void;
   onAddRepo?: () => void;
   className?: string;
   error?: string | null;
@@ -46,9 +43,7 @@ export function GitPanel({
   onWorkingBranchNameChange,
   onActionsClick,
   onPushClick,
-  onOpenInEditor,
-  onCopyPath,
-  onOpenSettings,
+  onMoreClick,
   className,
   error,
 }: GitPanelProps) {
@@ -70,9 +65,7 @@ export function GitPanel({
             name={repo.name}
             targetBranch={repo.targetBranch}
             commitsAhead={repo.commitsAhead}
-            filesChanged={repo.filesChanged}
-            linesAdded={repo.linesAdded}
-            linesRemoved={repo.linesRemoved}
+            commitsBehind={repo.commitsBehind}
             prNumber={repo.prNumber}
             prUrl={repo.prUrl}
             prStatus={repo.prStatus}
@@ -80,13 +73,12 @@ export function GitPanel({
             isPushPending={repo.isPushPending}
             isPushSuccess={repo.isPushSuccess}
             isPushError={repo.isPushError}
+            isTargetRemote={repo.isTargetRemote}
             onChangeTarget={() => onActionsClick?.(repo.id, 'change-target')}
             onRebase={() => onActionsClick?.(repo.id, 'rebase')}
             onActionsClick={(action) => onActionsClick?.(repo.id, action)}
             onPushClick={() => onPushClick?.(repo.id)}
-            onOpenInEditor={() => onOpenInEditor?.(repo.id)}
-            onCopyPath={() => onCopyPath?.(repo.id)}
-            onOpenSettings={() => onOpenSettings?.(repo.id)}
+            onMoreClick={() => onMoreClick?.(repo.id)}
           />
         ))}
         <div className="bg-primary flex flex-col gap-base w-full p-base rounded-sm my-base">

@@ -9,13 +9,15 @@ import {
   ChatCircleIcon,
   TrashIcon,
   WarningIcon,
+  ArrowUpIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
-import type {
-  BaseCodingAgent,
-  Session,
-  TodoItem,
-  TokenUsageInfo,
+import {
+  BaseAgentCapability,
+  type BaseCodingAgent,
+  type Session,
+  type TodoItem,
+  type TokenUsageInfo,
 } from 'shared/types';
 import type { LocalImageMetadata } from '@/components/ui/wysiwyg/context/task-attempt-context';
 import { formatDateShortWithTime } from '@/utils/date';
@@ -24,6 +26,7 @@ import { AgentIcon } from '@/components/agents/AgentIcon';
 import {
   ChatBoxBase,
   VisualVariant,
+  type DropzoneProps,
   type EditorProps,
   type VariantProps,
 } from './ChatBoxBase';
@@ -46,6 +49,7 @@ import {
 import { type ExecutorProps } from './CreateChatBox';
 import { ContextUsageGauge } from './ContextUsageGauge';
 import { TodoProgressPopup } from './TodoProgressPopup';
+import { useUserSystem } from '@/components/ConfigProvider';
 
 // Re-export shared types
 export type { EditorProps, VariantProps } from './ChatBoxBase';
@@ -138,7 +142,7 @@ interface SessionChatBoxProps {
   reviewComments?: ReviewCommentsProps;
   toolbarActions?: ToolbarActionsProps;
   error?: string | null;
-  workspaceId?: string;
+  repoIds?: string[];
   projectId?: string;
   agent?: BaseCodingAgent | null;
   executor?: ExecutorProps;
@@ -146,7 +150,9 @@ interface SessionChatBoxProps {
   inProgressTodo?: TodoItem | null;
   localImages?: LocalImageMetadata[];
   onViewCode?: () => void;
+  onScrollToPreviousMessage?: () => void;
   tokenUsageInfo?: TokenUsageInfo | null;
+  dropzone?: DropzoneProps;
 }
 
 /**
@@ -166,7 +172,7 @@ export function SessionChatBox({
   reviewComments,
   toolbarActions,
   error,
-  workspaceId,
+  repoIds,
   projectId,
   agent,
   executor,
@@ -174,10 +180,16 @@ export function SessionChatBox({
   inProgressTodo,
   localImages,
   onViewCode,
+  onScrollToPreviousMessage,
   tokenUsageInfo,
+  dropzone,
 }: SessionChatBoxProps) {
   const { t } = useTranslation('tasks');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { capabilities } = useUserSystem();
+
+  const supportsContextUsage =
+    agent && capabilities?.[agent]?.includes(BaseAgentCapability.CONTEXT_USAGE);
 
   // Determine if in feedback mode, edit mode, or approval mode
   const isInFeedbackMode = feedbackMode?.isActive ?? false;
@@ -505,8 +517,9 @@ export function SessionChatBox({
       placeholder={placeholder}
       onCmdEnter={handleCmdEnter}
       disabled={isDisabled}
-      workspaceId={workspaceId}
+      repoIds={repoIds}
       projectId={projectId}
+      executor={agent || executor?.selected}
       autoFocus={true}
       focusKey={focusKey}
       variant={variant}
@@ -516,6 +529,7 @@ export function SessionChatBox({
       isRunning={showRunningAnimation}
       onPasteFiles={actions.onPasteFiles}
       localImages={localImages}
+      dropzone={dropzone}
       headerLeft={
         <>
           {/* New session mode: agent icon + executor dropdown */}
@@ -556,19 +570,23 @@ export function SessionChatBox({
                 <>
                   {stats?.hasConflicts && (
                     <span
-                      className="flex items-center gap-1 text-warning text-sm"
+                      className="flex items-center gap-1 text-warning text-sm min-w-0"
                       title={t('conversation.approval.conflictWarning')}
                     >
-                      <WarningIcon className="size-icon-sm" />
-                      <span>
+                      <WarningIcon className="size-icon-sm flex-shrink-0" />
+                      <span className="truncate">
                         {t('conversation.approval.conflicts', {
                           count: stats.conflictedFilesCount,
                         })}
                       </span>
                     </span>
                   )}
-                  <PrimaryButton variant="tertiary" onClick={onViewCode}>
-                    <span className="text-sm space-x-half">
+                  <PrimaryButton
+                    variant="tertiary"
+                    onClick={onViewCode}
+                    className="min-w-0"
+                  >
+                    <span className="text-sm space-x-half whitespace-nowrap truncate">
                       <span>
                         {t('diff.filesChanged', { count: filesChanged })}
                       </span>
@@ -593,16 +611,29 @@ export function SessionChatBox({
       }
       headerRight={
         <>
-          {/* Agent icon for existing session mode */}
+          {/* Scroll to previous user message button + Agent icon for existing session mode */}
           {!isNewSessionMode && (
-            <AgentIcon agent={agent} className="size-icon-xl" />
+            <>
+              {onScrollToPreviousMessage && (
+                <ToolbarIconButton
+                  icon={ArrowUpIcon}
+                  title={t('conversation.actions.scrollToPreviousMessage')}
+                  aria-label={t('conversation.actions.scrollToPreviousMessage')}
+                  onClick={onScrollToPreviousMessage}
+                />
+              )}
+              <AgentIcon agent={agent} className="size-icon-xl" />
+            </>
           )}
           {/* Todo progress popup - always rendered, disabled when no todos */}
           <TodoProgressPopup todos={todos ?? []} />
-          <ContextUsageGauge tokenUsageInfo={tokenUsageInfo} />
+          {supportsContextUsage && (
+            <ContextUsageGauge tokenUsageInfo={tokenUsageInfo} />
+          )}
           <ToolbarDropdown
             label={sessionLabel}
             disabled={isInFeedbackMode || isInEditMode || isInApprovalMode}
+            className="min-w-0 max-w-[120px]"
           >
             {/* New Session option */}
             <DropdownMenuItem
@@ -627,9 +658,15 @@ export function SessionChatBox({
                     }
                     onClick={() => onSelectSession(s.id)}
                   >
-                    {index === 0
-                      ? t('conversation.sessions.latest')
-                      : formatDateShortWithTime(s.created_at)}
+                    <span className="flex items-center gap-1.5">
+                      <AgentIcon
+                        agent={s.executor as BaseCodingAgent}
+                        className="size-icon shrink-0"
+                      />
+                      {index === 0
+                        ? t('conversation.sessions.latest')
+                        : formatDateShortWithTime(s.created_at)}
+                    </span>
                   </DropdownMenuItem>
                 ))}
               </>

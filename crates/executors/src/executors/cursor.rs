@@ -92,6 +92,7 @@ impl StandardCodingAgentExecutor for CursorAgent {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .current_dir(current_dir)
+            .env("NPM_CONFIG_LOGLEVEL", "error")
             .args(&args);
 
         env.clone()
@@ -113,6 +114,7 @@ impl StandardCodingAgentExecutor for CursorAgent {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        _reset_to_message_id: Option<&str>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         mcp::ensure_mcp_server_trust(self, current_dir).await;
@@ -131,6 +133,7 @@ impl StandardCodingAgentExecutor for CursorAgent {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .current_dir(current_dir)
+            .env("NPM_CONFIG_LOGLEVEL", "error")
             .args(&args);
 
         env.clone()

@@ -1,8 +1,6 @@
 pub mod queue;
 pub mod review;
 
-use std::str::FromStr;
-
 use axum::{
     Extension, Json, Router,
     extract::{Query, State},
@@ -11,9 +9,10 @@ use axum::{
     routing::{get, post},
 };
 use db::models::{
+    coding_agent_turn::CodingAgentTurn,
     execution_process::{ExecutionProcess, ExecutionProcessRunReason},
     scratch::{Scratch, ScratchType},
-    session::{CreateSession, Session},
+    session::{CreateSession, Session, SessionError},
     workspace::{Workspace, WorkspaceError},
     workspace_repo::WorkspaceRepo,
 };
@@ -22,7 +21,6 @@ use executors::{
     actions::{
         ExecutorAction, ExecutorActionType, coding_agent_follow_up::CodingAgentFollowUpRequest,
     },
-    executors::BaseCodingAgent,
     profile::ExecutorProfileId,
 };
 use serde::Deserialize;
@@ -91,7 +89,7 @@ pub async fn create_session(
 #[derive(Debug, Deserialize, TS)]
 pub struct CreateFollowUpAttempt {
     pub prompt: String,
-    pub variant: Option<String>,
+    pub executor_profile_id: ExecutorProfileId,
     pub retry_process_id: Option<Uuid>,
     pub force_when_dirty: Option<bool>,
     pub perform_git_reset: Option<bool>,
@@ -118,31 +116,29 @@ pub async fn follow_up(
         .ensure_container_exists(&workspace)
         .await?;
 
-    // Get executor from the latest CodingAgent process, or fall back to session's executor
-    let base_executor =
-        match ExecutionProcess::latest_executor_profile_for_session(pool, session.id).await? {
-            Some(profile) => profile.executor,
-            None => {
-                // No prior execution - use session's executor field
-                let executor_str = session.executor.as_ref().ok_or_else(|| {
-                    ApiError::Workspace(WorkspaceError::ValidationError(
-                        "No prior execution and no executor configured on session".to_string(),
-                    ))
-                })?;
-                BaseCodingAgent::from_str(&executor_str.replace('-', "_").to_ascii_uppercase())
-                    .map_err(|_| {
-                        ApiError::Workspace(WorkspaceError::ValidationError(format!(
-                            "Invalid executor: {}",
-                            executor_str
-                        )))
-                    })?
-            }
-        };
+    let executor_profile_id = payload.executor_profile_id;
 
-    let executor_profile_id = ExecutorProfileId {
-        executor: base_executor,
-        variant: payload.variant,
-    };
+    // Validate executor matches session if session has prior executions
+    let expected_executor: Option<String> =
+        ExecutionProcess::latest_executor_profile_for_session(pool, session.id)
+            .await?
+            .map(|profile| profile.executor.to_string())
+            .or_else(|| session.executor.clone());
+
+    if let Some(expected) = expected_executor {
+        let actual = executor_profile_id.executor.to_string();
+        if expected != actual {
+            return Err(ApiError::Session(SessionError::ExecutorMismatch {
+                expected,
+                actual,
+            }));
+        }
+    }
+
+    if session.executor.is_none() {
+        Session::update_executor(pool, session.id, &executor_profile_id.executor.to_string())
+            .await?;
+    }
 
     // If retry settings provided, perform replace-logic before proceeding
     if let Some(proc_id) = payload.retry_process_id {
@@ -179,8 +175,7 @@ pub async fn follow_up(
         let _ = ExecutionProcess::drop_at_and_after(pool, process.session_id, proc_id).await?;
     }
 
-    let latest_agent_session_id =
-        ExecutionProcess::find_latest_coding_agent_turn_session_id(pool, session.id).await?;
+    let latest_session_info = CodingAgentTurn::find_latest_session_info(pool, session.id).await?;
 
     let prompt = payload.prompt;
 
@@ -193,10 +188,12 @@ pub async fn follow_up(
         .filter(|dir| !dir.is_empty())
         .cloned();
 
-    let action_type = if let Some(agent_session_id) = latest_agent_session_id {
+    let action_type = if let Some(info) = latest_session_info {
+        let is_reset = payload.retry_process_id.is_some();
         ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
             prompt: prompt.clone(),
-            session_id: agent_session_id,
+            session_id: info.session_id,
+            reset_to_message_id: if is_reset { info.message_id } else { None },
             executor_profile_id: executor_profile_id.clone(),
             working_dir: working_dir.clone(),
         })

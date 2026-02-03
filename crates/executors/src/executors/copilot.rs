@@ -119,8 +119,9 @@ impl StandardCodingAgentExecutor for Copilot {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1");
+            .env("NPM_CONFIG_LOGLEVEL", "error")
+            .env("NODE_NO_WARNINGS", "1")
+            .args(&args);
 
         env.clone()
             .with_profile(&self.cmd)
@@ -145,6 +146,7 @@ impl StandardCodingAgentExecutor for Copilot {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        _reset_to_message_id: Option<&str>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         let log_dir = Self::create_temp_log_dir(current_dir).await?;
@@ -163,8 +165,9 @@ impl StandardCodingAgentExecutor for Copilot {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1");
+            .env("NPM_CONFIG_LOGLEVEL", "error")
+            .env("NODE_NO_WARNINGS", "1")
+            .args(&args);
 
         env.clone()
             .with_profile(&self.cmd)

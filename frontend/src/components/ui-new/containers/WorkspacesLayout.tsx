@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Group, Layout, Panel, Separator } from 'react-resizable-panels';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { ExecutionProcessesProvider } from '@/contexts/ExecutionProcessesContext';
@@ -8,11 +8,13 @@ import { LogsPanelProvider } from '@/contexts/LogsPanelContext';
 import { ChangesViewProvider } from '@/contexts/ChangesViewContext';
 import { WorkspacesSidebarContainer } from '@/components/ui-new/containers/WorkspacesSidebarContainer';
 import { LogsContentContainer } from '@/components/ui-new/containers/LogsContentContainer';
-import { WorkspacesMainContainer } from '@/components/ui-new/containers/WorkspacesMainContainer';
+import {
+  WorkspacesMainContainer,
+  type WorkspacesMainContainerHandle,
+} from '@/components/ui-new/containers/WorkspacesMainContainer';
 import { RightSidebar } from '@/components/ui-new/containers/RightSidebar';
 import { ChangesPanelContainer } from '@/components/ui-new/containers/ChangesPanelContainer';
 import { CreateChatBoxContainer } from '@/components/ui-new/containers/CreateChatBoxContainer';
-import { NavbarContainer } from '@/components/ui-new/containers/NavbarContainer';
 import { PreviewBrowserContainer } from '@/components/ui-new/containers/PreviewBrowserContainer';
 import { WorkspacesGuideDialog } from '@/components/ui-new/dialogs/WorkspacesGuideDialog';
 import { useUserSystem } from '@/components/ConfigProvider';
@@ -23,9 +25,6 @@ import {
   useWorkspacePanelState,
   RIGHT_MAIN_PANEL_MODES,
 } from '@/stores/useUiPreferencesStore';
-
-import { CommandBarDialog } from '@/components/ui-new/dialogs/CommandBarDialog';
-import { useCommandBarShortcut } from '@/hooks/useCommandBarShortcut';
 
 const WORKSPACES_GUIDE_ID = 'workspaces-guide';
 
@@ -44,6 +43,12 @@ export function WorkspacesLayout() {
     startNewSession,
   } = useWorkspaceContext();
 
+  const mainContainerRef = useRef<WorkspacesMainContainerHandle>(null);
+
+  const handleScrollToBottom = useCallback(() => {
+    mainContainerRef.current?.scrollToBottom();
+  }, []);
+
   // Use workspace-specific panel state (pass undefined when in create mode)
   const {
     isLeftSidebarVisible,
@@ -57,8 +62,6 @@ export function WorkspacesLayout() {
     updateAndSaveConfig,
     loading: configLoading,
   } = useUserSystem();
-
-  useCommandBarShortcut(() => CommandBarDialog.show());
 
   // Auto-show Workspaces Guide on first visit
   useEffect(() => {
@@ -104,13 +107,14 @@ export function WorkspacesLayout() {
               {isLeftMainPanelVisible && (
                 <Panel
                   id="left-main"
-                  minSize={20}
+                  minSize="20%"
                   className="min-w-0 h-full overflow-hidden"
                 >
                   {isCreateMode ? (
                     <CreateChatBoxContainer />
                   ) : (
                     <WorkspacesMainContainer
+                      ref={mainContainerRef}
                       selectedWorkspace={selectedWorkspace ?? null}
                       selectedSession={selectedSession}
                       sessions={sessions}
@@ -133,7 +137,7 @@ export function WorkspacesLayout() {
               {rightMainPanelMode !== null && (
                 <Panel
                   id="right-main"
-                  minSize={20}
+                  minSize="20%"
                   className="min-w-0 h-full overflow-hidden"
                 >
                   {rightMainPanelMode === RIGHT_MAIN_PANEL_MODES.CHANGES &&
@@ -174,28 +178,25 @@ export function WorkspacesLayout() {
   );
 
   return (
-    <div className="flex flex-col h-screen">
-      <NavbarContainer />
-      <div className="flex flex-1 min-h-0">
-        {isLeftSidebarVisible && (
-          <div className="w-[300px] shrink-0 h-full overflow-hidden">
-            <WorkspacesSidebarContainer />
-          </div>
-        )}
-
-        <div className="flex-1 min-w-0 h-full">
-          {isCreateMode ? (
-            <CreateModeProvider>{mainContent}</CreateModeProvider>
-          ) : (
-            <ExecutionProcessesProvider
-              key={`${selectedWorkspace?.id}-${selectedSessionId}`}
-              attemptId={selectedWorkspace?.id}
-              sessionId={selectedSessionId}
-            >
-              {mainContent}
-            </ExecutionProcessesProvider>
-          )}
+    <div className="flex flex-1 min-h-0 h-full">
+      {isLeftSidebarVisible && (
+        <div className="w-[300px] shrink-0 h-full overflow-hidden">
+          <WorkspacesSidebarContainer onScrollToBottom={handleScrollToBottom} />
         </div>
+      )}
+
+      <div className="flex-1 min-w-0 h-full">
+        {isCreateMode ? (
+          <CreateModeProvider>{mainContent}</CreateModeProvider>
+        ) : (
+          <ExecutionProcessesProvider
+            key={`${selectedWorkspace?.id}-${selectedSessionId}`}
+            attemptId={selectedWorkspace?.id}
+            sessionId={selectedSessionId}
+          >
+            {mainContent}
+          </ExecutionProcessesProvider>
+        )}
       </div>
     </div>
   );

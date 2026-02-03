@@ -1,9 +1,37 @@
 // vite.config.ts
 import { sentryVitePlugin } from "@sentry/vite-plugin";
-import { defineConfig, Plugin } from "vite";
+import { createLogger, defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import fs from "fs";
+import pkg from "./package.json";
+
+function createFilteredLogger() {
+  const logger = createLogger();
+  const originalError = logger.error.bind(logger);
+
+  let lastRestartLog = 0;
+  const DEBOUNCE_MS = 2000;
+
+  logger.error = (msg, options) => {
+    const isProxyError =
+      msg.includes("ws proxy socket error") ||
+      msg.includes("ws proxy error:") ||
+      msg.includes("http proxy error:");
+
+    if (isProxyError) {
+      const now = Date.now();
+      if (now - lastRestartLog > DEBOUNCE_MS) {
+        logger.warn("Proxy connection closed, auto-reconnecting...");
+        lastRestartLog = now;
+      }
+      return;
+    }
+    originalError(msg, options);
+  };
+
+  return logger;
+}
 
 function executorSchemasPlugin(): Plugin {
   const VIRTUAL_ID = "virtual:executor-schemas";
@@ -50,6 +78,10 @@ export default schemas;
 }
 
 export default defineConfig({
+  customLogger: createFilteredLogger(),
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     react({
       babel: {
@@ -83,7 +115,7 @@ export default defineConfig({
         target: `http://localhost:${process.env.BACKEND_PORT || "3001"}`,
         changeOrigin: true,
         ws: true,
-      }
+      },
     },
     fs: {
       allow: [path.resolve(__dirname, "."), path.resolve(__dirname, "..")],

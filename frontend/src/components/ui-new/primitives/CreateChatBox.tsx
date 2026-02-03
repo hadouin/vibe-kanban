@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { CheckIcon, PaperclipIcon } from '@phosphor-icons/react';
+import { CheckIcon, PaperclipIcon, XIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { toPrettyCase } from '@/utils/string';
 import type { BaseCodingAgent } from 'shared/types';
@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   ChatBoxBase,
   VisualVariant,
+  type DropzoneProps,
   type EditorProps,
   type VariantProps,
 } from './ChatBoxBase';
@@ -28,6 +29,12 @@ export interface SaveAsDefaultProps {
   visible: boolean;
 }
 
+export interface LinkedIssueBadgeProps {
+  simpleId: string;
+  title: string;
+  onRemove: () => void;
+}
+
 interface CreateChatBoxProps {
   editor: EditorProps;
   onSend: () => void;
@@ -36,11 +43,14 @@ interface CreateChatBoxProps {
   variant?: VariantProps;
   saveAsDefault?: SaveAsDefaultProps;
   error?: string | null;
+  repoIds?: string[];
   projectId?: string;
+  repoId?: string;
   agent?: BaseCodingAgent | null;
   onPasteFiles?: (files: File[]) => void;
-  /** Local images for immediate preview (before saved to server) */
   localImages?: LocalImageMetadata[];
+  dropzone?: DropzoneProps;
+  linkedIssue?: LinkedIssueBadgeProps | null;
 }
 
 /**
@@ -55,10 +65,14 @@ export function CreateChatBox({
   variant,
   saveAsDefault,
   error,
+  repoIds,
   projectId,
+  repoId,
   agent,
   onPasteFiles,
   localImages,
+  dropzone,
+  linkedIssue,
 }: CreateChatBoxProps) {
   const { t } = useTranslation('tasks');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,13 +108,17 @@ export function CreateChatBox({
       placeholder="Describe the task..."
       onCmdEnter={handleCmdEnter}
       disabled={isSending}
+      repoIds={repoIds}
       projectId={projectId}
+      repoId={repoId}
+      executor={executor.selected}
       autoFocus
       variant={variant}
       error={error}
       visualVariant={VisualVariant.NORMAL}
       onPasteFiles={onPasteFiles}
       localImages={localImages}
+      dropzone={dropzone}
       headerLeft={
         <>
           <AgentIcon agent={agent} className="size-icon-xl" />
@@ -127,6 +145,26 @@ export function CreateChatBox({
             </label>
           )}
         </>
+      }
+      headerRight={
+        linkedIssue && (
+          <div
+            className="inline-flex items-center gap-1 h-6 px-2 bg-panel rounded-sm border text-sm text-normal font-medium whitespace-nowrap"
+            title={linkedIssue.title}
+          >
+            <span className="text-low">#</span>
+            <span className="font-mono text-xs">{linkedIssue.simpleId}</span>
+            <button
+              type="button"
+              onClick={linkedIssue.onRemove}
+              disabled={isSending}
+              className="ml-1 text-low hover:text-error transition-colors disabled:opacity-50"
+              aria-label={`Remove link to ${linkedIssue.simpleId}`}
+            >
+              <XIcon className="size-3" weight="bold" />
+            </button>
+          </div>
+        )
       }
       footerLeft={
         <>

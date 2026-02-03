@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import {
   useUiPreferencesStore,
   useWorkspacePanelState,
+  type LayoutMode,
 } from '@/stores/useUiPreferencesStore';
 import { useDiffViewStore, useDiffViewMode } from '@/stores/useDiffViewStore';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
@@ -9,6 +11,8 @@ import { useUserSystem } from '@/components/ConfigProvider';
 import { useDevServer } from '@/hooks/useDevServer';
 import { useBranchStatus } from '@/hooks/useBranchStatus';
 import { useExecutionProcessesContext } from '@/contexts/ExecutionProcessesContext';
+import { useLogsPanel } from '@/contexts/LogsPanelContext';
+import { useAuth } from '@/hooks/auth/useAuth';
 import type { Workspace, Merge } from 'shared/types';
 import type {
   ActionVisibilityContext,
@@ -33,11 +37,26 @@ export function useActionVisibilityContext(): ActionVisibilityContext {
   const diffPaths = useDiffViewStore((s) => s.diffPaths);
   const diffViewMode = useDiffViewMode();
   const expanded = useUiPreferencesStore((s) => s.expanded);
+
+  // Derive kanban state from URL (URL is single source of truth)
+  const { issueId: selectedKanbanIssueId } = useParams<{ issueId?: string }>();
+  const [searchParams] = useSearchParams();
+  const kanbanCreateMode = searchParams.get('mode') === 'create';
+
+  // Derive layoutMode from current route instead of persisted state
+  const location = useLocation();
+  const layoutMode: LayoutMode = location.pathname.startsWith('/projects')
+    ? 'kanban'
+    : location.pathname.startsWith('/migrate')
+      ? 'migrate'
+      : 'workspaces';
   const { config } = useUserSystem();
   const { isStarting, isStopping, runningDevServers } =
     useDevServer(workspaceId);
   const { data: branchStatus } = useBranchStatus(workspaceId);
   const { isAttemptRunningVisible } = useExecutionProcessesContext();
+  const { logsPanelContent } = useLogsPanel();
+  const { isSignedIn } = useAuth();
 
   return useMemo(() => {
     // Compute isAllDiffsExpanded
@@ -67,6 +86,7 @@ export function useActionVisibilityContext(): ActionVisibilityContext {
       false;
 
     return {
+      layoutMode,
       rightMainPanelMode: panelState.rightMainPanelMode,
       isLeftSidebarVisible: panelState.isLeftSidebarVisible,
       isLeftMainPanelVisible: panelState.isLeftMainPanelVisible,
@@ -85,8 +105,13 @@ export function useActionVisibilityContext(): ActionVisibilityContext {
       hasOpenPR,
       hasUnpushedCommits,
       isAttemptRunning: isAttemptRunningVisible,
+      logsPanelContent,
+      hasSelectedKanbanIssue: !!selectedKanbanIssueId,
+      isCreatingIssue: kanbanCreateMode,
+      isSignedIn,
     };
   }, [
+    layoutMode,
     panelState.rightMainPanelMode,
     panelState.isLeftSidebarVisible,
     panelState.isLeftMainPanelVisible,
@@ -103,6 +128,10 @@ export function useActionVisibilityContext(): ActionVisibilityContext {
     runningDevServers,
     branchStatus,
     isAttemptRunningVisible,
+    logsPanelContent,
+    selectedKanbanIssueId,
+    kanbanCreateMode,
+    isSignedIn,
   ]);
 }
 

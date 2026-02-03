@@ -1,4 +1,4 @@
-import { ReactNode, useRef, useEffect } from 'react';
+import { ReactNode, useState, useRef, useEffect } from 'react';
 import { usePostHog } from 'posthog-js/react';
 import { PortalContainerContext } from '@/contexts/PortalContainerContext';
 import {
@@ -6,8 +6,14 @@ import {
   useWorkspaceContext,
 } from '@/contexts/WorkspaceContext';
 import { ActionsProvider } from '@/contexts/ActionsContext';
+import { SequenceTrackerProvider } from '@/keyboard/SequenceTracker';
+import { SequenceIndicator } from '@/keyboard/SequenceIndicator';
+import { useWorkspaceShortcuts } from '@/keyboard/useWorkspaceShortcuts';
 import { ExecutionProcessesProvider } from '@/contexts/ExecutionProcessesContext';
+import { LogsPanelProvider } from '@/contexts/LogsPanelContext';
 import NiceModal from '@ebay/nice-modal-react';
+import { useKeyShowHelp, Scope } from '@/keyboard';
+import { KeyboardShortcutsDialog } from '@/components/ui-new/dialogs/KeyboardShortcutsDialog';
 import '@/styles/new/index.css';
 
 interface NewDesignScopeProps {
@@ -31,8 +37,19 @@ function ExecutionProcessesProviderWrapper({
   );
 }
 
+function KeyboardShortcutsHandler() {
+  useKeyShowHelp(
+    () => {
+      KeyboardShortcutsDialog.show();
+    },
+    { scope: Scope.GLOBAL }
+  );
+  useWorkspaceShortcuts();
+  return null;
+}
+
 export function NewDesignScope({ children }: NewDesignScopeProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const [container, setContainer] = useState<HTMLElement | null>(null);
   const posthog = usePostHog();
   const hasTracked = useRef(false);
 
@@ -44,16 +61,26 @@ export function NewDesignScope({ children }: NewDesignScopeProps) {
   }, [posthog]);
 
   return (
-    <div ref={ref} className="new-design h-full">
-      <PortalContainerContext.Provider value={ref}>
-        <WorkspaceProvider>
-          <ExecutionProcessesProviderWrapper>
-            <ActionsProvider>
-              <NiceModal.Provider>{children}</NiceModal.Provider>
-            </ActionsProvider>
-          </ExecutionProcessesProviderWrapper>
-        </WorkspaceProvider>
-      </PortalContainerContext.Provider>
+    <div ref={setContainer} className="new-design h-full">
+      {container && (
+        <PortalContainerContext.Provider value={container}>
+          <WorkspaceProvider>
+            <ExecutionProcessesProviderWrapper>
+              <LogsPanelProvider>
+                <ActionsProvider>
+                  <SequenceTrackerProvider>
+                    <SequenceIndicator />
+                    <NiceModal.Provider>
+                      <KeyboardShortcutsHandler />
+                      {children}
+                    </NiceModal.Provider>
+                  </SequenceTrackerProvider>
+                </ActionsProvider>
+              </LogsPanelProvider>
+            </ExecutionProcessesProviderWrapper>
+          </WorkspaceProvider>
+        </PortalContainerContext.Provider>
+      )}
     </div>
   );
 }

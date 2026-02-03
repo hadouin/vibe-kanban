@@ -82,6 +82,8 @@ impl ProjectRepo {
                       r.copy_files,
                       r.parallel_setup_script as "parallel_setup_script!: bool",
                       r.dev_server_script,
+                      r.default_target_branch,
+                      r.default_working_dir,
                       r.created_at as "created_at!: DateTime<Utc>",
                       r.updated_at as "updated_at!: DateTime<Utc>"
                FROM repos r

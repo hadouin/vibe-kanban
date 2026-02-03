@@ -14,7 +14,7 @@ use tracing::info;
 
 use super::{
     GitHostProvider,
-    types::{CreatePrRequest, GitHostError, ProviderKind, UnifiedPrComment},
+    types::{CreatePrRequest, GitHostError, OpenPrInfo, ProviderKind, UnifiedPrComment},
 };
 
 #[derive(Debug, Clone)]
@@ -41,29 +41,6 @@ impl AzureDevOpsProvider {
             .await
             .map_err(|err| GitHostError::Repository(format!("Failed to get repo info: {err}")))?
             .map_err(Into::into)
-    }
-
-    async fn check_auth(&self) -> Result<(), GitHostError> {
-        let cli = self.az_cli.clone();
-        task::spawn_blocking(move || cli.check_auth())
-            .await
-            .map_err(|err| {
-                GitHostError::Repository(format!(
-                    "Failed to execute Azure CLI for auth check: {err}"
-                ))
-            })?
-            .map_err(|err| match err {
-                AzCliError::NotAvailable => GitHostError::CliNotInstalled {
-                    provider: ProviderKind::AzureDevOps,
-                },
-                AzCliError::AuthFailed(msg) => GitHostError::AuthFailed(msg),
-                AzCliError::CommandFailed(msg) => {
-                    GitHostError::Repository(format!("Azure CLI auth check failed: {msg}"))
-                }
-                AzCliError::UnexpectedOutput(msg) => GitHostError::Repository(format!(
-                    "Unexpected output from Azure CLI auth check: {msg}"
-                )),
-            })
     }
 }
 
@@ -104,9 +81,6 @@ impl GitHostProvider for AzureDevOpsProvider {
                 "Cross-fork pull requests are not supported for Azure DevOps".to_string(),
             ));
         }
-
-        // Check auth first
-        self.check_auth().await?;
 
         let repo_info = self.get_repo_info(repo_path, remote_url).await?;
 
@@ -270,6 +244,15 @@ impl GitHostProvider for AzureDevOpsProvider {
             );
         })
         .await
+    }
+
+    async fn list_open_prs(
+        &self,
+        _repo_path: &Path,
+        _remote_url: &str,
+    ) -> Result<Vec<OpenPrInfo>, GitHostError> {
+        // TODO: Implement list_open_prs for Azure DevOps
+        Err(GitHostError::UnsupportedProvider)
     }
 
     fn provider_kind(&self) -> ProviderKind {

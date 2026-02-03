@@ -16,7 +16,7 @@ pub enum CommandBuildError {
     EmptyCommand,
     #[error("failed to quote command: {0}")]
     QuoteError(#[from] shlex::QuoteError),
-    #[error("invalide shell parameters: {0}")]
+    #[error("invalid shell parameters: {0}")]
     InvalidShellParams(String),
 }
 
@@ -102,6 +102,10 @@ impl CommandBuilder {
             .map(|p| p.into())
             .collect::<Vec<String>>()
             .join(" ");
+
+        if joined.trim().is_empty() {
+            return Ok(self);
+        }
 
         let extra: Vec<String> = split_command_line(&joined)
             .map_err(|err| CommandBuildError::InvalidShellParams(format!("{joined}: {err}")))?;

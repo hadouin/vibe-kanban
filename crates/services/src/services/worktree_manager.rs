@@ -2,15 +2,16 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
 };
 
+static WORKSPACE_DIR_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
+
+use git::{GitService, GitServiceError};
 use git2::{Error as GitError, Repository};
 use thiserror::Error;
 use tracing::{debug, info, trace};
 use utils::{path::normalize_macos_private_alias, shell::resolve_executable_path};
-
-use super::git::{GitService, GitServiceError};
 
 // Global synchronization for worktree creation to prevent race conditions
 static WORKTREE_CREATION_LOCKS: LazyLock<Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
@@ -54,6 +55,10 @@ pub enum WorktreeError {
 pub struct WorktreeManager;
 
 impl WorktreeManager {
+    pub fn set_workspace_dir_override(path: PathBuf) {
+        let _ = WORKSPACE_DIR_OVERRIDE.set(path);
+    }
+
     /// Create a worktree with a new branch
     pub async fn create_worktree(
         repo_path: &Path,
@@ -531,6 +536,16 @@ impl WorktreeManager {
 
     /// Get the base directory for vibe-kanban worktrees
     pub fn get_worktree_base_dir() -> std::path::PathBuf {
+        if let Some(override_path) = WORKSPACE_DIR_OVERRIDE.get() {
+            // Always use app-owned subdirectory within custom path for safety.
+            // This ensures orphan cleanup never touches user's existing folders.
+            return override_path.join(".vibe-kanban-workspaces");
+        }
+        Self::get_default_worktree_base_dir()
+    }
+
+    /// Get the default base directory (ignoring any override)
+    pub fn get_default_worktree_base_dir() -> std::path::PathBuf {
         utils::path::get_vibe_kanban_temp_dir().join("worktrees")
     }
 

@@ -48,6 +48,7 @@ import {
   CheckEditorAvailabilityResponse,
   AvailabilityInfo,
   BaseCodingAgent,
+  ExecutorProfileId,
   RunAgentSetupRequest,
   RunAgentSetupResponse,
   GhCliSetupError,
@@ -56,18 +57,14 @@ import {
   ListOrganizationsResponse,
   OrganizationMemberWithProfile,
   ListMembersResponse,
-  RemoteProjectMembersResponse,
   CreateOrganizationRequest,
   CreateOrganizationResponse,
   CreateInvitationRequest,
   CreateInvitationResponse,
   RevokeInvitationRequest,
   UpdateMemberRoleRequest,
-  CreateRemoteProjectRequest,
-  LinkToExistingRequest,
   UpdateMemberRoleResponse,
   Invitation,
-  RemoteProject,
   ListInvitationsResponse,
   OpenEditorResponse,
   OpenEditorRequest,
@@ -89,6 +86,14 @@ import {
   Workspace,
   StartReviewRequest,
   ReviewError,
+  OpenPrInfo,
+  GitRemote,
+  ListPrsError,
+  CreateWorkspaceFromPrBody,
+  CreateWorkspaceFromPrResponse,
+  CreateFromPrError,
+  MigrationRequest,
+  MigrationResponse,
 } from 'shared/types';
 import type { WorkspaceWithSession } from '@/types/attempt';
 import { createWorkspaceWithSession } from '@/types/attempt';
@@ -252,15 +257,6 @@ export const projectsApi = {
     return handleApiResponse<Project>(response);
   },
 
-  getRemoteMembers: async (
-    projectId: string
-  ): Promise<RemoteProjectMembersResponse> => {
-    const response = await makeRequest(
-      `/api/projects/${projectId}/remote/members`
-    );
-    return handleApiResponse<RemoteProjectMembersResponse>(response);
-  },
-
   delete: async (id: string): Promise<void> => {
     const response = await makeRequest(`/api/projects/${id}`, {
       method: 'DELETE',
@@ -291,38 +287,6 @@ export const projectsApi = {
       options
     );
     return handleApiResponse<SearchResult[]>(response);
-  },
-
-  linkToExisting: async (
-    localProjectId: string,
-    data: LinkToExistingRequest
-  ): Promise<Project> => {
-    const response = await makeRequest(`/api/projects/${localProjectId}/link`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return handleApiResponse<Project>(response);
-  },
-
-  createAndLink: async (
-    localProjectId: string,
-    data: CreateRemoteProjectRequest
-  ): Promise<Project> => {
-    const response = await makeRequest(
-      `/api/projects/${localProjectId}/link/create`,
-      {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }
-    );
-    return handleApiResponse<Project>(response);
-  },
-
-  unlink: async (projectId: string): Promise<Project> => {
-    const response = await makeRequest(`/api/projects/${projectId}/link`, {
-      method: 'DELETE',
-    });
-    return handleApiResponse<Project>(response);
   },
 
   getRepositories: async (projectId: string): Promise<Repo[]> => {
@@ -534,16 +498,27 @@ export const attemptsApi = {
     return handleApiResponse<void>(response);
   },
 
-  searchFiles: async (
+  linkToIssue: async (
     workspaceId: string,
-    query: string,
-    mode?: string
-  ): Promise<SearchResult[]> => {
-    const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
+    projectId: string,
+    issueId: string
+  ): Promise<void> => {
     const response = await makeRequest(
-      `/api/task-attempts/${workspaceId}/search?q=${encodeURIComponent(query)}${modeParam}`
+      `/api/task-attempts/${workspaceId}/link`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId, issue_id: issueId }),
+      }
     );
-    return handleApiResponse<SearchResult[]>(response);
+    return handleApiResponse<void>(response);
+  },
+
+  unlinkFromIssue: async (workspaceId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/task-attempts/${workspaceId}/unlink`,
+      { method: 'POST' }
+    );
+    return handleApiResponse<void>(response);
   },
 
   runAgentSetup: async (
@@ -770,6 +745,20 @@ export const attemptsApi = {
     );
     return handleApiResponse<void>(response);
   },
+
+  /** Create a workspace directly from a pull request */
+  createFromPr: async (
+    data: CreateWorkspaceFromPrBody
+  ): Promise<Result<CreateWorkspaceFromPrResponse, CreateFromPrError>> => {
+    const response = await makeRequest('/api/task-attempts/from-pr', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponseAsResult<
+      CreateWorkspaceFromPrResponse,
+      CreateFromPrError
+    >(response);
+  },
 };
 
 // Execution Process APIs
@@ -896,6 +885,22 @@ export const repoApi = {
       options
     );
     return handleApiResponse<SearchResult[]>(response);
+  },
+
+  listOpenPrs: async (
+    repoId: string,
+    remoteName?: string
+  ): Promise<Result<OpenPrInfo[], ListPrsError>> => {
+    const params = remoteName
+      ? `?remote=${encodeURIComponent(remoteName)}`
+      : '';
+    const response = await makeRequest(`/api/repos/${repoId}/prs${params}`);
+    return handleApiResponseAsResult<OpenPrInfo[], ListPrsError>(response);
+  },
+
+  listRemotes: async (repoId: string): Promise<GitRemote[]> => {
+    const response = await makeRequest(`/api/repos/${repoId}/remotes`);
+    return handleApiResponse<GitRemote[]>(response);
   },
 };
 
@@ -1178,6 +1183,15 @@ export const oauthApi = {
   },
 };
 
+/**
+ * @deprecated Use `tokenManager.getToken()` from '@/lib/auth/tokenManager' instead.
+ * This function does not handle 401 responses or token refresh coordination.
+ */
+export async function getCachedToken(): Promise<string | null> {
+  const { tokenManager } = await import('./auth/tokenManager');
+  return tokenManager.getToken();
+}
+
 // Organizations API
 export const organizationsApi = {
   getMembers: async (
@@ -1191,11 +1205,6 @@ export const organizationsApi = {
   getUserOrganizations: async (): Promise<ListOrganizationsResponse> => {
     const response = await makeRequest('/api/organizations');
     return handleApiResponse<ListOrganizationsResponse>(response);
-  },
-
-  getProjects: async (orgId: string): Promise<RemoteProject[]> => {
-    const response = await makeRequest(`/api/organizations/${orgId}/projects`);
-    return handleApiResponse<RemoteProject[]>(response);
   },
 
   createOrganization: async (
@@ -1324,6 +1333,21 @@ export const scratchApi = {
     `/api/scratch/${scratchType}/${id}/stream/ws`,
 };
 
+// Agents API
+export const agentsApi = {
+  getSlashCommandsStreamUrl: (
+    agent: BaseCodingAgent,
+    opts?: { workspaceId?: string; repoId?: string }
+  ): string => {
+    const params = new URLSearchParams();
+    params.set('executor', agent);
+    if (opts?.workspaceId) params.set('workspace_id', opts.workspaceId);
+    if (opts?.repoId) params.set('repo_id', opts.repoId);
+
+    return `/api/agents/slash-commands/ws?${params.toString()}`;
+  },
+};
+
 // Queue API for session follow-up messages
 export const queueApi = {
   /**
@@ -1331,7 +1355,7 @@ export const queueApi = {
    */
   queue: async (
     sessionId: string,
-    data: { message: string; variant: string | null }
+    data: { message: string; executor_profile_id: ExecutorProfileId }
   ): Promise<QueueStatus> => {
     const response = await makeRequest(`/api/sessions/${sessionId}/queue`, {
       method: 'POST',
@@ -1356,5 +1380,34 @@ export const queueApi = {
   getStatus: async (sessionId: string): Promise<QueueStatus> => {
     const response = await makeRequest(`/api/sessions/${sessionId}/queue`);
     return handleApiResponse<QueueStatus>(response);
+  },
+};
+
+// Migration API
+export const migrationApi = {
+  start: async (data: MigrationRequest): Promise<MigrationResponse> => {
+    const response = await makeRequest('/api/migration/start', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<MigrationResponse>(response);
+  },
+};
+
+// Search API (multi-repo file search)
+export const searchApi = {
+  searchFiles: async (
+    repoIds: string[],
+    query: string,
+    mode?: SearchMode,
+    options?: RequestInit
+  ): Promise<SearchResult[]> => {
+    const repoIdsParam = repoIds.join(',');
+    const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
+    const response = await makeRequest(
+      `/api/search?q=${encodeURIComponent(query)}&repo_ids=${encodeURIComponent(repoIdsParam)}${modeParam}`,
+      options
+    );
+    return handleApiResponse<SearchResult[]>(response);
   },
 };

@@ -12,7 +12,14 @@
     "connect": "Connecter",
     "disconnect": "Déconnecter",
     "close": "Fermer",
-    "replay": "Rejouer"
+    "replay": "Rejouer",
+    "discard": "Abandonner",
+    "addItem": "Ajouter un élément",
+    "reply": "Répondre"
+  },
+  "form": {
+    "notSpecified": "Non spécifié",
+    "selectOption": "Sélectionner une option..."
   },
   "states": {
     "loading": "Chargement...",
@@ -50,7 +57,10 @@
       "createdTask": "Tâche créée : {{description}}",
       "todoOperation": "{{operation}} tâches à faire"
     },
-    "fixScript": "Corriger le script"
+    "fixScript": "Corriger le script",
+    "subagent": {
+      "defaultType": "Sous-agent"
+    }
   },
   "folderPicker": {
     "legend": "Cliquez sur les noms de dossiers pour naviguer • Utilisez les boutons d'action pour sélectionner",
@@ -85,12 +95,18 @@
     "menuItem": "Organisation",
     "loadingPlaceholder": "Chargement des organisations...",
     "selectPlaceholder": "Sélectionner une organisation",
-    "currentBadge": " (actuelle)"
+    "currentBadge": " (actuelle)",
+    "organizations": "Organisations",
+    "createOrganization": "Créer une organisation",
+    "orgSettings": "Paramètres de l'organisation"
   },
   "navbar": {
     "tryNewUI": "essayer la nouvelle interface",
     "stopAllDevServers": "Arrêter tous les serveurs de développement"
   },
+  "ok": "OK",
+  "error": "Erreur",
+  "signIn": "Se connecter",
   "signOut": "Se déconnecter",
   "devMode": {
     "banner": "Mode développement - Ceci est une version de développement"
@@ -150,14 +166,25 @@
       "placeholder": "Saisir le nom de l'espace de travail",
       "action": "Renommer",
       "renaming": "Renommage..."
-    }
+    },
+    "unlinkFromIssue": "Dissocier du problème",
+    "deleteWorkspace": "Supprimer l'espace de travail",
+    "unlink": "Dissocier",
+    "delete": "Supprimer",
+    "unlinkConfirmMessage": "Êtes-vous sûr de vouloir dissocier cet espace de travail du problème ? L'espace de travail existera toujours mais ne sera plus associé à ce problème.",
+    "deleteConfirmMessage": "Êtes-vous sûr de vouloir supprimer cet espace de travail ? Cela le dissociera du problème et supprimera l'espace de travail local. Cette action est irréversible.",
+    "unlinkError": "Échec de la dissociation de l'espace de travail",
+    "deleteError": "Échec de la suppression de l'espace de travail",
+    "filesChanged": "{{count}} fichiers"
   },
   "fileTree": {
     "searchPlaceholder": "Rechercher des fichiers...",
     "noResults": "Aucun fichier correspondant",
     "title": "Fichiers",
     "showGitHubComments": "Afficher les commentaires GitHub",
-    "hideGitHubComments": "Masquer les commentaires GitHub"
+    "hideGitHubComments": "Masquer les commentaires GitHub",
+    "prevGitHubComment": "Fichier précédent avec commentaires",
+    "nextGitHubComment": "Fichier suivant avec commentaires"
   },
   "sections": {
     "changes": "Modifications",
@@ -200,7 +227,8 @@
   "comments": {
     "addReviewComment": "Ajouter un commentaire de révision",
     "addPlaceholder": "Ajouter un commentaire...",
-    "editPlaceholder": "Modifier le commentaire..."
+    "editPlaceholder": "Modifier le commentaire...",
+    "copyToReview": "Copier vers la révision"
   },
   "confirm": {
     "defaultConfirm": "Confirmer",
@@ -303,5 +331,56 @@
     "emptyTooltip": "L'utilisation du contexte apparaît après la prochaine réponse",
     "tooltip": "Contexte : {{percentage}}% · {{used}} / {{total}} tokens",
     "ariaLabel": "Utilisation du contexte : {{percentage}}%"
+  },
+  "shortcuts": {
+    "title": "Raccourcis Clavier",
+    "inWorkspace": "(dans l'espace de travail)",
+    "sequentialHint": "Raccourcis séquentiels : Appuyez sur la première touche, puis sur la seconde en 500ms.",
+    "configurableHint": "Configurable dans Paramètres → Général → Saisie de Message"
+  },
+  "typeahead": {
+    "tags": "Tags",
+    "files": "Fichiers",
+    "commands": "Commandes",
+    "noTagsOrFiles": "Aucun tag ou fichier trouvé",
+    "noCommands": "Aucune commande disponible pour cet agent."
+  },
+  "kanban": {
+    "noStatusesFound": "Aucun statut trouvé pour ce projet",
+    "noVisibleStatuses": "Tous les statuts sont masqués. Utilisez les paramètres d'affichage ou changez d'onglet pour voir les problèmes.",
+    "noProjectFound": "Aucun projet trouvé",
+    "noOrganizationFound": "Aucune organisation trouvée",
+    "unassigned": "Non assigné",
+    "noTagsAvailable": "Aucun tag disponible",
+    "createNewIssue": "Créer un nouveau ticket",
+    "createNewTag": "Créer un nouveau tag",
+    "searchTags": "Rechercher des tags...",
+    "selectColorFor": "Sélectionner la couleur pour",
+    "createTag": "Créer",
+    "filesCount": "{{count}} Fichiers",
+    "noPrCreated": "Aucune PR créée",
+    "noCommentsYet": "Aucun commentaire",
+    "comments": "Commentaires",
+    "enterCommentPlaceholder": "Entrez votre commentaire ici...",
+    "subIssues": "Sous-tâches",
+    "noSubIssues": "Aucune sous-tâche",
+    "parentIssue": "Parent",
+    "subIssueIndicator": "↳",
+    "viewTabs": {
+      "active": "Actif",
+      "all": "Tout"
+    },
+    "loginRequired": {
+      "title": "Connexion requise",
+      "description": "Veuillez vous connecter pour voir ce projet.",
+      "action": "Se connecter"
+    }
+  },
+  "syncError": {
+    "networkErrors": "Erreurs réseau",
+    "streamsAffected": "{{count}} flux affecté",
+    "streamsAffected_other": "{{count}} flux affectés",
+    "status": "(statut {{status}})",
+    "refreshPage": "Actualiser la page"
   }
 }

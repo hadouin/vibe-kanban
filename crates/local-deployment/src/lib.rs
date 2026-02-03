@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use db::DBService;
 use deployment::{Deployment, DeploymentError, RemoteClientNotConfigured};
 use executors::profile::ExecutorConfigs;
+use git::GitService;
 use services::services::{
     analytics::{AnalyticsConfig, AnalyticsContext, AnalyticsService, generate_user_id},
     approvals::Approvals,
@@ -13,15 +14,16 @@ use services::services::{
     events::EventService,
     file_search::FileSearchCache,
     filesystem::FilesystemService,
-    git::GitService,
     image::ImageService,
     oauth_credentials::OAuthCredentials,
+    pr_monitor::PrMonitorService,
     project::ProjectService,
     queued_message::QueuedMessageService,
     remote_client::{RemoteClient, RemoteClientError},
     repo::RepoService,
+    worktree_manager::WorktreeManager,
 };
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, task::JoinHandle};
 use utils::{
     api::oauth::LoginStatus,
     assets::{config_path, credentials_path},
@@ -89,6 +91,11 @@ impl Deployment for LocalDeployment {
 
         // Always save config (may have been migrated or version updated)
         save_config_to_file(&raw_config, &config_path()).await?;
+
+        if let Some(workspace_dir) = &raw_config.workspace_dir {
+            let path = utils::path::expand_tilde(workspace_dir);
+            WorktreeManager::set_workspace_dir_override(path);
+        }
 
         let config = Arc::new(RwLock::new(raw_config));
         let user_id = generate_user_id();
@@ -173,6 +180,7 @@ impl Deployment for LocalDeployment {
             analytics_ctx,
             approvals.clone(),
             queued_message_service.clone(),
+            remote_client.clone().ok(),
         )
         .await;
 
@@ -264,6 +272,19 @@ impl Deployment for LocalDeployment {
 
     fn auth_context(&self) -> &AuthContext {
         &self.auth_context
+    }
+
+    async fn spawn_pr_monitor_service(&self) -> JoinHandle<()> {
+        let db = self.db().clone();
+        let analytics = self
+            .analytics()
+            .as_ref()
+            .map(|analytics_service| AnalyticsContext {
+                user_id: self.user_id().to_string(),
+                analytics_service: analytics_service.clone(),
+            });
+        let remote_client = self.remote_client().ok();
+        PrMonitorService::spawn(db, analytics, remote_client).await
     }
 }
 

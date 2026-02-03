@@ -29,12 +29,19 @@
     "create": "Crear",
     "delete": "Eliminar",
     "disconnect": "Desconectar",
+    "discard": "Descartar",
     "edit": "Editar",
     "manage": "Gestionar",
     "replay": "Reproducir",
     "reset": "Restablecer",
     "save": "Guardar",
-    "send": "Enviar"
+    "send": "Enviar",
+    "addItem": "Añadir elemento",
+    "reply": "Responder"
+  },
+  "form": {
+    "notSpecified": "No especificado",
+    "selectOption": "Seleccionar una opción..."
   },
   "conversation": {
     "args": "Argumentos",
@@ -61,7 +68,10 @@
       "createdTask": "Creó tarea: {{description}}",
       "todoOperation": "{{operation}} tareas pendientes"
     },
-    "fixScript": "Corregir Script"
+    "fixScript": "Corregir Script",
+    "subagent": {
+      "defaultType": "Subagente"
+    }
   },
   "language": {
     "browserDefault": "Predeterminado del navegador"
@@ -85,12 +95,18 @@
     "menuItem": "Organización",
     "loadingPlaceholder": "Cargando organizaciones...",
     "selectPlaceholder": "Seleccionar una organización",
-    "currentBadge": " (actual)"
+    "currentBadge": " (actual)",
+    "organizations": "Organizaciones",
+    "createOrganization": "Crear organización",
+    "orgSettings": "Configuración de la organización"
   },
   "navbar": {
     "tryNewUI": "prueba la nueva interfaz",
     "stopAllDevServers": "Detener todos los servidores de desarrollo"
   },
+  "ok": "OK",
+  "error": "Error",
+  "signIn": "Iniciar sesión",
   "signOut": "Cerrar sesión",
   "devMode": {
     "banner": "Modo de Desarrollo - Esta es una compilación de desarrollo"
@@ -150,14 +166,25 @@
       "placeholder": "Ingresa el nombre del espacio de trabajo",
       "action": "Renombrar",
       "renaming": "Renombrando..."
-    }
+    },
+    "unlinkFromIssue": "Desvincular del problema",
+    "deleteWorkspace": "Eliminar espacio de trabajo",
+    "unlink": "Desvincular",
+    "delete": "Eliminar",
+    "unlinkConfirmMessage": "¿Estás seguro de que deseas desvincular este espacio de trabajo del problema? El espacio de trabajo seguirá existiendo pero ya no estará asociado con este problema.",
+    "deleteConfirmMessage": "¿Estás seguro de que deseas eliminar este espacio de trabajo? Esto lo desvinculará del problema y eliminará el espacio de trabajo local. Esta acción no se puede deshacer.",
+    "unlinkError": "Error al desvincular el espacio de trabajo",
+    "deleteError": "Error al eliminar el espacio de trabajo",
+    "filesChanged": "{{count}} archivos"
   },
   "fileTree": {
     "searchPlaceholder": "Buscar archivos...",
     "noResults": "No hay archivos coincidentes",
     "title": "Archivos",
     "showGitHubComments": "Mostrar comentarios de GitHub",
-    "hideGitHubComments": "Ocultar comentarios de GitHub"
+    "hideGitHubComments": "Ocultar comentarios de GitHub",
+    "prevGitHubComment": "Archivo anterior con comentarios",
+    "nextGitHubComment": "Siguiente archivo con comentarios"
   },
   "sections": {
     "changes": "Cambios",
@@ -200,7 +227,8 @@
   "comments": {
     "addReviewComment": "Agregar comentario de revisión",
     "addPlaceholder": "Agregar un comentario...",
-    "editPlaceholder": "Editar comentario..."
+    "editPlaceholder": "Editar comentario...",
+    "copyToReview": "Copiar a revisión"
   },
   "confirm": {
     "defaultConfirm": "Confirmar",
@@ -303,5 +331,56 @@
     "emptyTooltip": "El uso del contexto aparece después de la próxima respuesta",
     "tooltip": "Contexto: {{percentage}}% · {{used}} / {{total}} tokens",
     "ariaLabel": "Uso del contexto: {{percentage}}%"
+  },
+  "shortcuts": {
+    "title": "Atajos de Teclado",
+    "inWorkspace": "(en espacio de trabajo)",
+    "sequentialHint": "Atajos secuenciales: Presiona la primera tecla, luego la segunda en 500ms.",
+    "configurableHint": "Configurable en Ajustes → General → Entrada de Mensaje"
+  },
+  "typeahead": {
+    "tags": "Etiquetas",
+    "files": "Archivos",
+    "commands": "Comandos",
+    "noTagsOrFiles": "No se encontraron etiquetas ni archivos",
+    "noCommands": "No hay comandos disponibles para este agente."
+  },
+  "kanban": {
+    "noStatusesFound": "No se encontraron estados para este proyecto",
+    "noVisibleStatuses": "Todos los estados están ocultos. Usa la configuración de visualización o cambia a otra pestaña para ver los problemas.",
+    "noProjectFound": "No se encontró el proyecto",
+    "noOrganizationFound": "No se encontró la organización",
+    "unassigned": "Sin asignar",
+    "noTagsAvailable": "No hay etiquetas disponibles",
+    "createNewIssue": "Crear nuevo issue",
+    "createNewTag": "Crear nueva etiqueta",
+    "searchTags": "Buscar etiquetas...",
+    "selectColorFor": "Seleccionar color para",
+    "createTag": "Crear",
+    "filesCount": "{{count}} Archivos",
+    "noPrCreated": "No se creó PR",
+    "noCommentsYet": "Sin comentarios aún",
+    "comments": "Comentarios",
+    "enterCommentPlaceholder": "Ingresa tu comentario aquí...",
+    "subIssues": "Subtareas",
+    "noSubIssues": "Sin subtareas",
+    "parentIssue": "Padre",
+    "subIssueIndicator": "↳",
+    "viewTabs": {
+      "active": "Activo",
+      "all": "Todo"
+    },
+    "loginRequired": {
+      "title": "Se requiere iniciar sesión",
+      "description": "Por favor inicia sesión para ver este proyecto.",
+      "action": "Iniciar sesión"
+    }
+  },
+  "syncError": {
+    "networkErrors": "Errores de red",
+    "streamsAffected": "{{count}} flujo afectado",
+    "streamsAffected_other": "{{count}} flujos afectados",
+    "status": "(estado {{status}})",
+    "refreshPage": "Actualizar página"
   }
 }

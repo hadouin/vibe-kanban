@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tokio::process::Command;
+use tokio_util::sync::CancellationToken;
 use workspace_utils::approvals::ApprovalStatus;
 
 use super::types::PermissionMode;
@@ -23,6 +23,8 @@ use crate::{
 const EXIT_PLAN_MODE_NAME: &str = "ExitPlanMode";
 pub const AUTO_APPROVE_CALLBACK_ID: &str = "AUTO_APPROVE_CALLBACK_ID";
 pub const STOP_GIT_CHECK_CALLBACK_ID: &str = "STOP_GIT_CHECK_CALLBACK_ID";
+// Prefix for denial messages from the user, mirrors claude code CLI behavior
+const TOOL_DENY_PREFIX: &str = "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). To tell you how to proceed, the user said: ";
 
 /// Claude Agent client with control protocol support
 pub struct ClaudeAgentClient {
@@ -30,6 +32,7 @@ pub struct ClaudeAgentClient {
     approvals: Option<Arc<dyn ExecutorApprovalService>>,
     auto_approve: bool, // true when approvals is None
     repo_context: RepoContext,
+    cancel: CancellationToken,
 }
 
 impl ClaudeAgentClient {
@@ -38,6 +41,7 @@ impl ClaudeAgentClient {
         log_writer: LogWriter,
         approvals: Option<Arc<dyn ExecutorApprovalService>>,
         repo_context: RepoContext,
+        cancel: CancellationToken,
     ) -> Arc<Self> {
         let auto_approve = approvals.is_none();
         Arc::new(Self {
@@ -45,6 +49,7 @@ impl ClaudeAgentClient {
             approvals,
             auto_approve,
             repo_context,
+            cancel,
         })
     }
 
@@ -59,64 +64,67 @@ impl ClaudeAgentClient {
             .approvals
             .as_ref()
             .ok_or(ExecutorApprovalError::ServiceUnavailable)?;
+
         let status = approval_service
-            .request_tool_approval(&tool_name, tool_input.clone(), &tool_use_id)
-            .await;
+            .request_tool_approval(
+                &tool_name,
+                tool_input.clone(),
+                &tool_use_id,
+                self.cancel.clone(),
+            )
+            .await
+            .map_err(|err| {
+                if !matches!(err, ExecutorApprovalError::Cancelled) {
+                    tracing::error!(
+                        "Claude approval failed for tool={} call_id={}: {err}",
+                        tool_name,
+                        tool_use_id
+                    );
+                };
+                err
+            })?;
+
+        self.log_writer
+            .log_raw(&serde_json::to_string(&ClaudeJson::ApprovalResponse {
+                call_id: tool_use_id.clone(),
+                tool_name: tool_name.clone(),
+                approval_status: status.clone(),
+            })?)
+            .await?;
+
         match status {
-            Ok(status) => {
-                // Log the approval response so we it appears in the executor logs
-                self.log_writer
-                    .log_raw(&serde_json::to_string(&ClaudeJson::ApprovalResponse {
-                        call_id: tool_use_id.clone(),
-                        tool_name: tool_name.clone(),
-                        approval_status: status.clone(),
-                    })?)
-                    .await?;
-                match status {
-                    ApprovalStatus::Approved => {
-                        if tool_name == EXIT_PLAN_MODE_NAME {
-                            Ok(PermissionResult::Allow {
-                                updated_input: tool_input,
-                                updated_permissions: Some(vec![PermissionUpdate {
-                                    update_type: PermissionUpdateType::SetMode,
-                                    mode: Some(PermissionMode::BypassPermissions),
-                                    destination: Some(PermissionUpdateDestination::Session),
-                                    rules: None,
-                                    behavior: None,
-                                    directories: None,
-                                }]),
-                            })
-                        } else {
-                            Ok(PermissionResult::Allow {
-                                updated_input: tool_input,
-                                updated_permissions: None,
-                            })
-                        }
-                    }
-                    ApprovalStatus::Denied { reason } => {
-                        let message = reason.unwrap_or("Denied by user".to_string());
-                        Ok(PermissionResult::Deny {
-                            message,
-                            interrupt: Some(false),
-                        })
-                    }
-                    ApprovalStatus::TimedOut => Ok(PermissionResult::Deny {
-                        message: "Approval request timed out".to_string(),
-                        interrupt: Some(false),
-                    }),
-                    ApprovalStatus::Pending => Ok(PermissionResult::Deny {
-                        message: "Approval still pending (unexpected)".to_string(),
-                        interrupt: Some(false),
-                    }),
+            ApprovalStatus::Approved => {
+                if tool_name == EXIT_PLAN_MODE_NAME {
+                    Ok(PermissionResult::Allow {
+                        updated_input: tool_input,
+                        updated_permissions: Some(vec![PermissionUpdate {
+                            update_type: PermissionUpdateType::SetMode,
+                            mode: Some(PermissionMode::BypassPermissions),
+                            destination: Some(PermissionUpdateDestination::Session),
+                            rules: None,
+                            behavior: None,
+                            directories: None,
+                        }]),
+                    })
+                } else {
+                    Ok(PermissionResult::Allow {
+                        updated_input: tool_input,
+                        updated_permissions: None,
+                    })
                 }
             }
-            Err(e) => {
-                tracing::error!("Tool approval request failed: {e}");
-                Ok(PermissionResult::Deny {
-                    message: "Tool approval request failed".to_string(),
-                    interrupt: Some(false),
-                })
-            }
+            ApprovalStatus::Denied { reason } => Ok(PermissionResult::Deny {
+                message: format!("{}{}", TOOL_DENY_PREFIX, reason.unwrap_or_default()),
+                interrupt: Some(false),
+            }),
+            ApprovalStatus::TimedOut => Ok(PermissionResult::Deny {
+                message: "Approval request timed out".to_string(),
+                interrupt: Some(true),
+            }),
+            ApprovalStatus::Pending => Ok(PermissionResult::Deny {
+                message: "Approval still pending (unexpected)".to_string(),
+                interrupt: Some(false),
+            }),
         }
     }
 
@@ -157,7 +165,6 @@ impl ClaudeAgentClient {
     ) -> Result<serde_json::Value, ExecutorError> {
         // Stop hook git check - uses `decision` (approve/block) and `reason` fields
         if callback_id == STOP_GIT_CHECK_CALLBACK_ID {
-            // If stop_hook_active is true, we already showed the reminder - just approve
             if input
                 .get("stop_hook_active")
                 .and_then(|v| v.as_bool())
@@ -165,7 +172,18 @@ impl ClaudeAgentClient {
             {
                 return Ok(serde_json::json!({"decision": "approve"}));
             }
-            return Ok(check_git_status(&self.repo_context).await);
+            let status = self.repo_context.check_uncommitted_changes().await;
+            return Ok(if status.is_empty() {
+                serde_json::json!({"decision": "approve"})
+            } else {
+                serde_json::json!({
+                    "decision": "block",
+                    "reason": format!(
+                        "There are uncommitted changes. Please stage and commit them now with a descriptive commit message.{}",
+                        status
+                    )
+                })
+            });
         }
 
         if self.auto_approve {
@@ -203,51 +221,5 @@ impl ClaudeAgentClient {
 
     pub async fn log_message(&self, line: &str) -> Result<(), ExecutorError> {
         self.log_writer.log_raw(line).await
-    }
-}
-
-/// Check for uncommitted git changes across all repos in the workspace.
-/// Returns a Stop hook response using `decision` (approve/block) and `reason` fields.
-async fn check_git_status(repo_context: &RepoContext) -> serde_json::Value {
-    let repo_paths = repo_context.repo_paths();
-
-    if repo_paths.is_empty() {
-        return serde_json::json!({"decision": "approve"});
-    }
-
-    let mut all_status = String::new();
-
-    for repo_path in &repo_paths {
-        if !repo_path.join(".git").exists() {
-            continue;
-        }
-
-        let output = Command::new("git")
-            .args(["status", "--porcelain"])
-            .current_dir(repo_path)
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .output()
-            .await;
-
-        if let Ok(out) = output
-            && !out.stdout.is_empty()
-        {
-            let status = String::from_utf8_lossy(&out.stdout);
-            all_status.push_str(&format!("\n{}:\n{}", repo_path.display(), status));
-        }
-    }
-
-    if all_status.is_empty() {
-        // No uncommitted changes in any repo
-        serde_json::json!({"decision": "approve"})
-    } else {
-        // Has uncommitted changes, block stop
-        serde_json::json!({
-            "decision": "block",
-            "reason": format!(
-                "There are uncommitted changes. Please stage and commit them now with a descriptive commit message.{}",
-                all_status
-            )
-        })
     }
 }

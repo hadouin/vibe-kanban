@@ -1,6 +1,6 @@
 import { useMemo, useCallback, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useDropzone } from 'react-dropzone';
 import { useCreateMode } from '@/contexts/CreateModeContext';
 import { useUserSystem } from '@/components/ConfigProvider';
 import { useCreateWorkspace } from '@/hooks/useCreateWorkspace';
@@ -9,10 +9,10 @@ import { getVariantOptions, areProfilesEqual } from '@/utils/executor';
 import { splitMessageToTitleDescription } from '@/utils/string';
 import type { ExecutorProfileId, BaseCodingAgent } from 'shared/types';
 import { CreateChatBox } from '../primitives/CreateChatBox';
+import { SettingsDialog } from '../dialogs/SettingsDialog';
 
 export function CreateChatBoxContainer() {
   const { t } = useTranslation('common');
-  const navigate = useNavigate();
   const { profiles, config, updateAndSaveConfig } = useUserSystem();
   const {
     repos,
@@ -24,6 +24,8 @@ export function CreateChatBoxContainer() {
     selectedProjectId,
     clearDraft,
     hasInitialValue,
+    linkedIssue,
+    clearLinkedIssue,
   } = useCreateMode();
 
   const { createWorkspace } = useCreateWorkspace();
@@ -43,6 +45,26 @@ export function CreateChatBoxContainer() {
 
   const { uploadFiles, getImageIds, clearAttachments, localImages } =
     useCreateAttachments(handleInsertMarkdown);
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      const imageFiles = acceptedFiles.filter((f) =>
+        f.type.startsWith('image/')
+      );
+      if (imageFiles.length > 0) {
+        uploadFiles(imageFiles);
+      }
+    },
+    [uploadFiles]
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'image/*': [] },
+    disabled: createWorkspace.isPending,
+    noClick: true,
+    noKeyboard: true,
+  });
 
   // Default to user's config profile or first available executor
   const effectiveProfile = useMemo<ExecutorProfileId | null>(() => {
@@ -83,6 +105,8 @@ export function CreateChatBoxContainer() {
   // Get project ID from context
   const projectId = selectedProjectId;
 
+  const repoId = repos.length === 1 ? repos[0]?.id : undefined;
+
   // Determine if we can submit
   const canSubmit =
     repos.length > 0 &&
@@ -102,10 +126,10 @@ export function CreateChatBoxContainer() {
     [effectiveProfile, setSelectedProfile]
   );
 
-  // Navigate to agent settings to customise variants
+  // Open settings modal to agent settings section
   const handleCustomise = useCallback(() => {
-    navigate('/settings/agents');
-  }, [navigate]);
+    SettingsDialog.show({ initialSection: 'agents' });
+  }, []);
 
   // Handle executor change - use saved variant if switching to default executor
   const handleExecutorChange = useCallback(
@@ -155,19 +179,27 @@ export function CreateChatBoxContainer() {
     const { title, description } = splitMessageToTitleDescription(message);
 
     await createWorkspace.mutateAsync({
-      task: {
-        project_id: projectId,
-        title,
-        description,
-        status: null,
-        parent_workspace_id: null,
-        image_ids: getImageIds(),
+      data: {
+        task: {
+          project_id: projectId,
+          title,
+          description,
+          status: null,
+          parent_workspace_id: null,
+          image_ids: getImageIds(),
+        },
+        executor_profile_id: effectiveProfile,
+        repos: repos.map((r) => ({
+          repo_id: r.id,
+          target_branch: targetBranches[r.id] ?? 'main',
+        })),
       },
-      executor_profile_id: effectiveProfile,
-      repos: repos.map((r) => ({
-        repo_id: r.id,
-        target_branch: targetBranches[r.id] ?? 'main',
-      })),
+      linkToIssue: linkedIssue
+        ? {
+            remoteProjectId: linkedIssue.remoteProjectId,
+            issueId: linkedIssue.issueId,
+          }
+        : undefined,
     });
 
     // Clear attachments and draft after successful creation
@@ -187,6 +219,7 @@ export function CreateChatBoxContainer() {
     saveAsDefault,
     hasChangedFromDefault,
     updateAndSaveConfig,
+    linkedIssue,
   ]);
 
   // Determine error to display
@@ -251,10 +284,22 @@ export function CreateChatBoxContainer() {
             visible: hasChangedFromDefault,
           }}
           error={displayError}
+          repoIds={repos.map((r) => r.id)}
           projectId={projectId}
           agent={effectiveProfile?.executor ?? null}
+          repoId={repoId}
           onPasteFiles={uploadFiles}
           localImages={localImages}
+          dropzone={{ getRootProps, getInputProps, isDragActive }}
+          linkedIssue={
+            linkedIssue
+              ? {
+                  simpleId: linkedIssue.simpleId,
+                  title: linkedIssue.title,
+                  onRemove: clearLinkedIssue,
+                }
+              : null
+          }
         />
       </div>
     </div>

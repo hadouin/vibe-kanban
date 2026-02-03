@@ -64,12 +64,46 @@
         ]
       },
       {
+        "group": "Workspaces (Beta)",
+        "pages": [
+          "workspaces/index",
+          "workspaces/creating-workspaces",
+          "workspaces/managing-workspaces",
+          "workspaces/repositories",
+          "workspaces/sessions",
+          "workspaces/chat-interface",
+          "workspaces/slash-commands",
+          "workspaces/interface",
+          "workspaces/command-bar",
+          "workspaces/multi-repo-sessions",
+          "workspaces/preview",
+          "workspaces/changes",
+          "workspaces/git-operations"
+        ]
+      },
+      {
         "group": "Configuration & Customisation",
         "pages": [
           "configuration-customisation/global-settings",
           "configuration-customisation/agent-configurations",
           "configuration-customisation/creating-task-tags",
           "configuration-customisation/keyboard-shortcuts"
+        ]
+      },
+      {
+        "group": "Settings (Beta)",
+        "pages": [
+          "settings-beta/index",
+          {
+            "group": "General",
+            "pages": [
+              "settings-beta/general",
+              "settings-beta/creating-task-tags"
+            ]
+          },
+          "settings-beta/projects-repositories",
+          "settings-beta/agent-configurations",
+          "settings-beta/mcp-servers"
         ]
       },
       {

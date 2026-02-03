@@ -63,6 +63,7 @@ impl StandardCodingAgentExecutor for Amp {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .current_dir(current_dir)
+            .env("NPM_CONFIG_LOGLEVEL", "error")
             .args(&args);
 
         env.clone()
@@ -85,6 +86,7 @@ impl StandardCodingAgentExecutor for Amp {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        _reset_to_message_id: Option<&str>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         // 1) Fork the thread synchronously to obtain new thread id
@@ -100,6 +102,7 @@ impl StandardCodingAgentExecutor for Amp {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .current_dir(current_dir)
+            .env("NPM_CONFIG_LOGLEVEL", "error")
             .args(&fork_args)
             .output()
             .await?;
@@ -136,6 +139,7 @@ impl StandardCodingAgentExecutor for Amp {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .current_dir(current_dir)
+            .env("NPM_CONFIG_LOGLEVEL", "error")
             .args(&continue_args);
 
         env.clone()

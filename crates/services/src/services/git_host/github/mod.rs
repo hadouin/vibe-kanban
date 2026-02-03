@@ -14,7 +14,7 @@ use tracing::info;
 
 use super::{
     GitHostProvider,
-    types::{CreatePrRequest, GitHostError, ProviderKind, UnifiedPrComment},
+    types::{CreatePrRequest, GitHostError, OpenPrInfo, ProviderKind, UnifiedPrComment},
 };
 
 #[derive(Debug, Clone)]
@@ -43,29 +43,6 @@ impl GitHubProvider {
                 GitHostError::Repository(format!("Failed to get repo info from URL: {err}"))
             })?
             .map_err(Into::into)
-    }
-
-    async fn check_auth(&self) -> Result<(), GitHostError> {
-        let cli = self.gh_cli.clone();
-        task::spawn_blocking(move || cli.check_auth())
-            .await
-            .map_err(|err| {
-                GitHostError::Repository(format!(
-                    "Failed to execute GitHub CLI for auth check: {err}"
-                ))
-            })?
-            .map_err(|err| match err {
-                GhCliError::NotAvailable => GitHostError::CliNotInstalled {
-                    provider: ProviderKind::GitHub,
-                },
-                GhCliError::AuthFailed(msg) => GitHostError::AuthFailed(msg),
-                GhCliError::CommandFailed(msg) => {
-                    GitHostError::Repository(format!("GitHub CLI auth check failed: {msg}"))
-                }
-                GhCliError::UnexpectedOutput(msg) => GitHostError::Repository(format!(
-                    "Unexpected output from GitHub CLI auth check: {msg}"
-                )),
-            })
     }
 
     async fn fetch_general_comments(
@@ -187,9 +164,6 @@ impl GitHostProvider for GitHubProvider {
         remote_url: &str,
         request: &CreatePrRequest,
     ) -> Result<PullRequestInfo, GitHostError> {
-        // Check auth first
-        self.check_auth().await?;
-
         // Get owner/repo from the remote URL (target repo for the PR).
         let target_repo_info = self.get_repo_info(remote_url, repo_path).await?;
 
@@ -383,6 +357,47 @@ impl GitHostProvider for GitHubProvider {
         unified.sort_by_key(|c| c.created_at());
 
         Ok(unified)
+    }
+
+    async fn list_open_prs(
+        &self,
+        repo_path: &Path,
+        remote_url: &str,
+    ) -> Result<Vec<OpenPrInfo>, GitHostError> {
+        let repo_info = self.get_repo_info(remote_url, repo_path).await?;
+
+        let cli = self.gh_cli.clone();
+
+        (|| async {
+            let cli = cli.clone();
+            let owner = repo_info.owner.clone();
+            let repo_name = repo_info.repo_name.clone();
+
+            let prs = task::spawn_blocking(move || cli.list_open_prs(&owner, &repo_name))
+                .await
+                .map_err(|err| {
+                    GitHostError::PullRequest(format!(
+                        "Failed to execute GitHub CLI for listing open PRs: {err}"
+                    ))
+                })?;
+            prs.map_err(GitHostError::from)
+        })
+        .retry(
+            &ExponentialBuilder::default()
+                .with_min_delay(Duration::from_secs(1))
+                .with_max_delay(Duration::from_secs(30))
+                .with_max_times(3)
+                .with_jitter(),
+        )
+        .when(|e: &GitHostError| e.should_retry())
+        .notify(|err: &GitHostError, dur: Duration| {
+            tracing::warn!(
+                "GitHub API call failed, retrying after {:.2}s: {}",
+                dur.as_secs_f64(),
+                err
+            );
+        })
+        .await
     }
 
     fn provider_kind(&self) -> ProviderKind {

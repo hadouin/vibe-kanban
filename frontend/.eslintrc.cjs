@@ -164,6 +164,9 @@ module.exports = {
         '**/*.test.{ts,tsx}',
         '**/*.stories.{ts,tsx}',
         'src/pages/ui-new/ElectricTestPage.tsx',
+        'src/pages/Migration.tsx',
+        'src/components/ui-new/views/Migrate*.tsx',
+        'src/components/ui-new/containers/Migrate*.tsx',
       ],
       rules: {
         'i18next/no-literal-string': 'off',
@@ -227,6 +230,23 @@ module.exports = {
             selector: 'Literal[value=/(?<!icon-)(?<!-)size-[0-9]/]',
             message:
               'Use design system sizes (size-icon-xs, size-icon-sm, size-icon-base, size-icon-lg, size-icon-xl, size-dot) instead of generic Tailwind sizes.',
+          },
+        ],
+      },
+    },
+    {
+      // Ban re-exports (barrel exports) in ui-new index files
+      files: ['src/components/ui-new/**/index.ts'],
+      rules: {
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector: 'ExportNamedDeclaration[source]',
+            message: 'Re-exports are not allowed in ui-new. Export directly from source files.',
+          },
+          {
+            selector: 'ExportAllDeclaration',
+            message: 'Wildcard re-exports (export *) are not allowed in ui-new.',
           },
         ],
       },

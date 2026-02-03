@@ -6,7 +6,14 @@ import {
   VirtuosoMessageListMethods,
   VirtuosoMessageListProps,
 } from '@virtuoso.dev/message-list';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { cn } from '@/lib/utils';
 import NewDisplayConversationEntry from './NewDisplayConversationEntry';
@@ -15,12 +22,21 @@ import { useEntries } from '@/contexts/EntriesContext';
 import {
   AddEntryType,
   PatchTypeWithKey,
+  DisplayEntry,
+  isAggregatedGroup,
+  isAggregatedDiffGroup,
   useConversationHistory,
 } from '@/components/ui-new/hooks/useConversationHistory';
+import { aggregateConsecutiveEntries } from '@/utils/aggregateEntries';
 import type { WorkspaceWithSession } from '@/types/attempt';
 
 interface ConversationListProps {
   attempt: WorkspaceWithSession;
+}
+
+export interface ConversationListHandle {
+  scrollToPreviousUserMessage: () => void;
+  scrollToBottom: () => void;
 }
 
 interface MessageListContext {
@@ -49,10 +65,38 @@ const ScrollToTopOfLastItem: ScrollModifier = {
 };
 
 const ItemContent: VirtuosoMessageListProps<
-  PatchTypeWithKey,
+  DisplayEntry,
   MessageListContext
 >['ItemContent'] = ({ data, context }) => {
   const attempt = context?.attempt;
+
+  // Handle aggregated tool groups (file_read, search, web_fetch)
+  if (isAggregatedGroup(data)) {
+    return (
+      <NewDisplayConversationEntry
+        expansionKey={data.patchKey}
+        aggregatedGroup={data}
+        aggregatedDiffGroup={null}
+        entry={null}
+        executionProcessId={data.executionProcessId}
+        taskAttempt={attempt}
+      />
+    );
+  }
+
+  // Handle aggregated diff groups (file_edit by same path)
+  if (isAggregatedDiffGroup(data)) {
+    return (
+      <NewDisplayConversationEntry
+        expansionKey={data.patchKey}
+        aggregatedGroup={null}
+        aggregatedDiffGroup={data}
+        entry={null}
+        executionProcessId={data.executionProcessId}
+        taskAttempt={attempt}
+      />
+    );
+  }
 
   if (data.type === 'STDOUT') {
     return <p>{data.content}</p>;
@@ -65,6 +109,8 @@ const ItemContent: VirtuosoMessageListProps<
       <NewDisplayConversationEntry
         expansionKey={data.patchKey}
         entry={data.content}
+        aggregatedGroup={null}
+        aggregatedDiffGroup={null}
         executionProcessId={data.executionProcessId}
         taskAttempt={attempt}
       />
@@ -75,13 +121,16 @@ const ItemContent: VirtuosoMessageListProps<
 };
 
 const computeItemKey: VirtuosoMessageListProps<
-  PatchTypeWithKey,
+  DisplayEntry,
   MessageListContext
 >['computeItemKey'] = ({ data }) => `conv-${data.patchKey}`;
 
-export function ConversationList({ attempt }: ConversationListProps) {
+export const ConversationList = forwardRef<
+  ConversationListHandle,
+  ConversationListProps
+>(function ConversationList({ attempt }, ref) {
   const [channelData, setChannelData] =
-    useState<DataWithScrollModifier<PatchTypeWithKey> | null>(null);
+    useState<DataWithScrollModifier<DisplayEntry> | null>(null);
   const [loading, setLoading] = useState(true);
   const { setEntries, reset } = useEntries();
   const pendingUpdateRef = useRef<{
@@ -132,7 +181,10 @@ export function ConversationList({ attempt }: ConversationListProps) {
         scrollModifier = AutoScrollToBottom;
       }
 
-      setChannelData({ data: pending.entries, scrollModifier });
+      // Aggregate consecutive read/search entries into groups
+      const aggregatedEntries = aggregateConsecutiveEntries(pending.entries);
+
+      setChannelData({ data: aggregatedEntries, scrollModifier });
       setEntries(pending.entries);
 
       if (loading) {
@@ -145,6 +197,60 @@ export function ConversationList({ attempt }: ConversationListProps) {
 
   const messageListRef = useRef<VirtuosoMessageListMethods | null>(null);
   const messageListContext = useMemo(() => ({ attempt }), [attempt]);
+
+  // Expose scroll to previous user message functionality via ref
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToPreviousUserMessage: () => {
+        const data = channelData?.data;
+        if (!data || !messageListRef.current) return;
+
+        // Get currently rendered items to find visible range
+        const rendered = messageListRef.current.data.getCurrentlyRendered();
+        if (!rendered.length) return;
+
+        // Find the index of the first visible item in the full data array
+        const firstVisibleKey = rendered[0]?.patchKey;
+        const firstVisibleIndex = data.findIndex(
+          (item) => item.patchKey === firstVisibleKey
+        );
+
+        // Find all user message indices
+        const userMessageIndices: number[] = [];
+        data.forEach((item, index) => {
+          if (
+            item.type === 'NORMALIZED_ENTRY' &&
+            item.content.entry_type.type === 'user_message'
+          ) {
+            userMessageIndices.push(index);
+          }
+        });
+
+        // Find the user message before the first visible item
+        const targetIndex = userMessageIndices
+          .reverse()
+          .find((idx) => idx < firstVisibleIndex);
+
+        if (targetIndex !== undefined) {
+          messageListRef.current.scrollToItem({
+            index: targetIndex,
+            align: 'start',
+            behavior: 'smooth',
+          });
+        }
+      },
+      scrollToBottom: () => {
+        if (!messageListRef.current) return;
+        messageListRef.current.scrollToItem({
+          index: 'LAST',
+          align: 'end',
+          behavior: 'smooth',
+        });
+      },
+    }),
+    [channelData]
+  );
 
   // Determine if content is ready to show (has data or finished loading)
   const hasContent = !loading || (channelData?.data?.length ?? 0) > 0;
@@ -160,7 +266,7 @@ export function ConversationList({ attempt }: ConversationListProps) {
         <VirtuosoMessageListLicense
           licenseKey={import.meta.env.VITE_PUBLIC_REACT_VIRTUOSO_LICENSE_KEY}
         >
-          <VirtuosoMessageList<PatchTypeWithKey, MessageListContext>
+          <VirtuosoMessageList<DisplayEntry, MessageListContext>
             ref={messageListRef}
             className="h-full scrollbar-none"
             data={channelData}
@@ -175,6 +281,6 @@ export function ConversationList({ attempt }: ConversationListProps) {
       </div>
     </ApprovalFormProvider>
   );
-}
+});
 
 export default ConversationList;
