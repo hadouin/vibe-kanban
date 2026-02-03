@@ -402,9 +402,9 @@ export const Actions = {
     id: 'stop-all-dev-servers',
     label: 'Stop All Dev Servers',
     icon: StopIcon,
-    requiresTarget: false,
+    requiresTarget: ActionTargetType.NONE,
     isVisible: (ctx) => ctx.hasWorkspace && ctx.runningDevServers.length > 0,
-    execute: async (ctx) => {
+    execute: async (ctx: ActionExecutorContext) => {
       if (!ctx.currentWorkspaceId) return;
 
       const workspace = await getWorkspace(
@@ -419,7 +419,7 @@ export const Actions = {
         ctx.queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
       }
     },
-  },
+  } satisfies GlobalActionDefinition,
 
   DeleteWorkspace: {
     id: 'delete-workspace',

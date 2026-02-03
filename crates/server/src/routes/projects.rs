@@ -20,16 +20,10 @@ use db::models::{
 };
 use deployment::Deployment;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
-use serde::Deserialize;
 use services::services::{
     container::ContainerService, file_search::SearchQuery, project::ProjectServiceError,
-    remote_client::CreateRemoteProjectPayload,
 };
-use ts_rs::TS;
-use utils::{
-    api::projects::{RemoteProject, RemoteProjectMembersResponse},
-    response::ApiResponse,
-};
+use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use crate::{DeploymentImpl, error::ApiError, middleware::load_project_middleware};
