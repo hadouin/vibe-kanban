@@ -433,7 +433,7 @@ export const Actions = {
     icon: StopIcon,
     requiresTarget: ActionTargetType.NONE,
     isVisible: (ctx) => ctx.hasWorkspace && ctx.runningDevServers.length > 0,
-    execute: async (ctx) => {
+    execute: async (ctx: ActionExecutorContext) => {
       if (!ctx.currentWorkspaceId) return;
 
       const workspace = await getWorkspace(
@@ -448,7 +448,7 @@ export const Actions = {
         ctx.queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
       }
     },
-  },
+  } satisfies GlobalActionDefinition,
 
   DeleteWorkspace: {
     id: 'delete-workspace',
