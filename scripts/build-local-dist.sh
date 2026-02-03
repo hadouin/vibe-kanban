@@ -31,7 +31,20 @@ ln -s "$DIST_DIR/$VERSION_NAME" "$DIST_DIR/latest"
 echo "=== Creating launcher script ==="
 cat > "$LAUNCHER" << 'EOF'
 #!/bin/bash
-node ~/vibe-kanban-had/latest/bin/cli.js "$@"
+
+# Required parameters:
+# @raycast.schemaVersion 1
+# @raycast.title vibe-kanban-local
+# @raycast.mode compact
+
+# Optional parameters:
+# @raycast.icon 🤖
+
+# Documentation:
+# @raycast.description Launch Vibe Kanban (local build)
+# @raycast.author Hadouin
+
+open -na "Ghostty" --args -e bash -c "node ~/vibe-kanban-had/latest/bin/cli.js; exec bash"
 EOF
 chmod +x "$LAUNCHER"
 
