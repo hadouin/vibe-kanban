@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
 } from './Dropdown';
 import { SplitButton, type SplitButtonOption } from './SplitButton';
+import { IconButton } from './IconButton';
 import { useRepoAction } from '@/stores/useUiPreferencesStore';
 
 export type RepoAction =
@@ -123,7 +124,7 @@ export function RepoCard({
       <div className="font-medium">{name}</div>
       {/* Branch row */}
       <div className="flex items-center gap-base">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 flex items-center gap-half">
           <DropdownMenu>
             <DropdownMenuTriggerButton
               icon={GitBranchIcon}
@@ -149,6 +150,15 @@ export function RepoCard({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          {onRebase && (
+            <IconButton
+              icon={ArrowsClockwiseIcon}
+              onClick={onRebase}
+              aria-label={t('rebase.common.action')}
+              title={t('rebase.common.action')}
+              className="shrink-0"
+            />
+          )}
         </div>
 
         {/* Commits ahead/behind indicators */}
