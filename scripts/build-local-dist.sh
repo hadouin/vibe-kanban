@@ -29,7 +29,7 @@ rm -rf "$DIST_DIR/latest"
 ln -s "$DIST_DIR/$VERSION_NAME" "$DIST_DIR/latest"
 
 echo "=== Creating launcher script ==="
-cat > "$LAUNCHER" << 'EOF'
+cat > "$LAUNCHER" << EOF
 #!/bin/bash
 
 # Required parameters:
@@ -41,10 +41,23 @@ cat > "$LAUNCHER" << 'EOF'
 # @raycast.icon 🤖
 
 # Documentation:
-# @raycast.description Launch Vibe Kanban (local build)
+# @raycast.description Launch Vibe Kanban (local build) with remote backend
 # @raycast.author Hadouin
 
-open -na "Ghostty" --args -e bash -c "node ~/vibe-kanban-had/latest/bin/cli.js; exec bash"
+PROJECT_ROOT="$PROJECT_ROOT"
+
+# Start remote in background
+cd "\$PROJECT_ROOT/crates/remote"
+docker compose --env-file "\$PROJECT_ROOT/.env.remote" \\
+  -f docker-compose.yml -f docker-compose.local.yml up -d
+
+# Wait for remote to be healthy
+echo "Waiting for remote backend..."
+until curl -s http://localhost:4001/health > /dev/null 2>&1; do sleep 1; done
+echo "Remote backend ready!"
+
+# Open Ghostty with VK
+open -na "Ghostty" --args -e bash -c "VK_SHARED_API_BASE=http://localhost:4001 PORT=4000 node ~/vibe-kanban-had/latest/bin/cli.js; exec bash"
 EOF
 chmod +x "$LAUNCHER"
 
