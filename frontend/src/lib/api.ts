@@ -82,6 +82,7 @@ import {
   PushTaskAttemptRequest,
   RepoBranchStatus,
   AbortConflictsRequest,
+  ContinueRebaseRequest,
   Session,
   Workspace,
   StartReviewRequest,
@@ -666,6 +667,20 @@ export const attemptsApi = {
     return handleApiResponse<void>(response);
   },
 
+  continueRebase: async (
+    attemptId: string,
+    data: ContinueRebaseRequest
+  ): Promise<void> => {
+    const response = await makeRequest(
+      `/api/task-attempts/${attemptId}/rebase/continue`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+
   createPR: async (
     attemptId: string,
     data: CreatePrApiRequest
@@ -716,6 +731,20 @@ export const attemptsApi = {
   ): Promise<Result<ExecutionProcess, RunScriptError>> => {
     const response = await makeRequest(
       `/api/task-attempts/${attemptId}/run-cleanup-script`,
+      {
+        method: 'POST',
+      }
+    );
+    return handleApiResponseAsResult<ExecutionProcess, RunScriptError>(
+      response
+    );
+  },
+
+  runArchiveScript: async (
+    attemptId: string
+  ): Promise<Result<ExecutionProcess, RunScriptError>> => {
+    const response = await makeRequest(
+      `/api/task-attempts/${attemptId}/run-archive-script`,
       {
         method: 'POST',
       }

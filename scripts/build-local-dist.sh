@@ -45,7 +45,7 @@ cat > "$LAUNCHER" << EOF
 # @raycast.author Hadouin
 
 # Open Ghostty with VK
-open -na "Ghostty" --args -e bash -c "PORT=4000 node ~/vibe-kanban-had/latest/bin/cli.js; exec bash"
+open -na "Ghostty" --args -e bash -c "VK_SHARED_API_BASE=https://api.vibekanban.com/v1/ PORT=4000 node ~/vibe-kanban-had/latest/bin/cli.js; exec bash"
 EOF
 chmod +x "$LAUNCHER"
 
