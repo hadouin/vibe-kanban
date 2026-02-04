@@ -14,7 +14,7 @@ VERSION_NAME="${TIMESTAMP}-${COMMIT}"
 
 echo "=== Building NPX CLI ==="
 cd "$PROJECT_ROOT"
-pnpm run build:npx
+VK_SHARED_API_BASE=https://api.vibekanban.com VITE_VK_SHARED_API_BASE=https://api.vibekanban.com pnpm run build:npx
 
 echo "=== Creating distribution folder ==="
 mkdir -p "$DIST_DIR/$VERSION_NAME"
@@ -45,7 +45,7 @@ cat > "$LAUNCHER" << EOF
 # @raycast.author Hadouin
 
 # Open Ghostty with VK
-open -na "Ghostty" --args -e bash -c "PORT=4000 node ~/vibe-kanban-had/latest/bin/cli.js; exec bash"
+open -na "Ghostty" --args -e bash -c "VK_SHARED_API_BASE=https://api.vibekanban.com VITE_VK_SHARED_API_BASE=https://api.vibekanban.com PORT=4000 node ~/vibe-kanban-had/latest/bin/cli.js; exec bash"
 EOF
 chmod +x "$LAUNCHER"
 
