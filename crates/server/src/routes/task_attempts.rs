@@ -1302,10 +1302,6 @@ pub async fn start_dev_server(
         execution_processes.push(execution_process);
     }
 
-    // Get parent task and project for analytics
-    let task = workspace.parent_task(pool).await?.ok_or(SqlxError::RowNotFound)?;
-    let project = task.parent_project(pool).await?.ok_or(SqlxError::RowNotFound)?;
-
     deployment
         .track_if_analytics_allowed(
             "dev_server_started",

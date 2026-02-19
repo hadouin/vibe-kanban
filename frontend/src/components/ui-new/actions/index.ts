@@ -64,7 +64,7 @@ import {
   RIGHT_MAIN_PANEL_MODES,
 } from '@/stores/useUiPreferencesStore';
 
-import { attemptsApi, tasksApi, repoApi, projectsApi } from '@/lib/api';
+import { attemptsApi, repoApi } from '@/lib/api';
 import { bulkUpdateIssues } from '@/lib/remoteApi';
 import { attemptKeys } from '@/hooks/useAttempt';
 import { workspaceSummaryKeys } from '@/components/ui-new/hooks/useWorkspaces';
@@ -453,19 +453,8 @@ export const Actions = {
     requiresTarget: ActionTargetType.NONE,
     isVisible: (ctx) => ctx.hasWorkspace && ctx.runningDevServers.length > 0,
     execute: async (ctx: ActionExecutorContext) => {
-      if (!ctx.currentWorkspaceId) return;
-
-      const workspace = await getWorkspace(
-        ctx.queryClient,
-        ctx.currentWorkspaceId
-      );
-      if (!workspace?.task_id) return;
-
-      const task = await tasksApi.getById(workspace.task_id);
-      if (task?.project_id) {
-        await projectsApi.stopAllDevServers(task.project_id);
-        ctx.queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
-      }
+      if (ctx.runningDevServers.length === 0) return;
+      ctx.stopDevServer();
     },
   } satisfies GlobalActionDefinition,
 
