@@ -107,7 +107,8 @@
     "migrate": "마이그레이션"
   },
   "navbar": {
-    "tryNewUI": "새로운 UI 사용해보기"
+    "tryNewUI": "새로운 UI 사용해보기",
+    "stopAllDevServers": "모든 개발 서버 중지"
   },
   "ok": "확인",
   "error": "오류",

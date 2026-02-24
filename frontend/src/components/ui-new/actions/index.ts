@@ -56,6 +56,7 @@ import {
   LinkIcon,
   ArrowBendUpRightIcon,
   ProhibitIcon,
+  StopIcon,
 } from '@phosphor-icons/react';
 import { useDiffViewStore } from '@/stores/useDiffViewStore';
 import {
@@ -444,6 +445,18 @@ export const Actions = {
       }
     },
   },
+
+  StopAllDevServers: {
+    id: 'stop-all-dev-servers',
+    label: 'Stop All Dev Servers',
+    icon: StopIcon,
+    requiresTarget: ActionTargetType.NONE,
+    isVisible: (ctx) => ctx.hasWorkspace && ctx.runningDevServers.length > 0,
+    execute: async (ctx: ActionExecutorContext) => {
+      if (ctx.runningDevServers.length === 0) return;
+      ctx.stopDevServer();
+    },
+  } satisfies GlobalActionDefinition,
 
   DeleteWorkspace: {
     id: 'delete-workspace',
@@ -986,12 +999,13 @@ export const Actions = {
       } else {
         ctx.startDevServer();
         // Auto-open preview mode when starting dev server
-        useUiPreferencesStore
-          .getState()
-          .setRightMainPanelMode(
-            RIGHT_MAIN_PANEL_MODES.PREVIEW,
-            ctx.currentWorkspaceId ?? undefined
-          );
+        const workspaceId = ctx.currentWorkspaceId;
+        if (!workspaceId) return;
+
+        const uiPreferences = useUiPreferencesStore.getState();
+        uiPreferences.setWorkspacePanelState(workspaceId, {
+          rightMainPanelMode: RIGHT_MAIN_PANEL_MODES.PREVIEW,
+        });
       }
     },
   },
@@ -1675,12 +1689,15 @@ export type NavbarItem = ActionDefinition | typeof NavbarDivider;
 
 // Navbar action groups define which actions appear in each section
 export const NavbarActionGroups = {
-  left: [Actions.ArchiveWorkspace] as NavbarItem[],
+  left: [
+    Actions.ToggleLeftSidebar,
+    Actions.StopAllDevServers,
+    Actions.ArchiveWorkspace,
+  ] as NavbarItem[],
   right: [
     Actions.ToggleDiffViewMode,
     Actions.ToggleAllDiffs,
     NavbarDivider,
-    Actions.ToggleLeftSidebar,
     Actions.ToggleLeftMainPanel,
     Actions.ToggleChangesMode,
     Actions.ToggleLogsMode,

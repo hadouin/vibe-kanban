@@ -9,17 +9,37 @@ const DEV_ASSETS_SEED = path.join(__dirname, "..", "dev_assets_seed");
 const DEV_ASSETS = path.join(__dirname, "..", "dev_assets");
 
 /**
- * Check if a port is available
+ * Check if a host:port is accepting TCP connections
  */
-function isPortAvailable(port) {
+function canConnect(host, port) {
   return new Promise((resolve) => {
-    const sock = net.createConnection({ port, host: "localhost" });
-    sock.on("connect", () => {
+    const sock = net.createConnection({ port, host });
+    let settled = false;
+
+    const finish = (connected) => {
+      if (settled) return;
+      settled = true;
       sock.destroy();
-      resolve(false);
-    });
-    sock.on("error", () => resolve(true));
+      resolve(connected);
+    };
+
+    sock.setTimeout(200);
+    sock.on("connect", () => finish(true));
+    sock.on("timeout", () => finish(false));
+    sock.on("error", () => finish(false));
   });
+}
+
+/**
+ * Check if a port is available on both IPv4 and IPv6 localhost.
+ * Using only "localhost" can miss IPv4 listeners when localhost resolves to ::1.
+ */
+async function isPortAvailable(port) {
+  const [hasIpv4Listener, hasIpv6Listener] = await Promise.all([
+    canConnect("127.0.0.1", port),
+    canConnect("::1", port),
+  ]);
+  return !hasIpv4Listener && !hasIpv6Listener;
 }
 
 /**
@@ -84,11 +104,16 @@ async function verifyPorts(ports) {
  * Allocate ports for development
  */
 async function allocatePorts() {
-  // If PORT env is set, use it for frontend and PORT+1 for backend
+  // If PORT env is set, use it as a preferred starting point.
   if (process.env.PORT) {
-    const frontendPort = parseInt(process.env.PORT, 10);
-    const backendPort = frontendPort + 1;
-    const previewProxyPort = backendPort + 1;
+    const requestedFrontendPort = parseInt(process.env.PORT, 10);
+    if (Number.isNaN(requestedFrontendPort)) {
+      throw new Error("PORT environment variable must be a valid integer");
+    }
+
+    const frontendPort = await findFreePort(requestedFrontendPort);
+    const backendPort = await findFreePort(frontendPort + 1);
+    const previewProxyPort = await findFreePort(backendPort + 1);
 
     const ports = {
       frontend: frontendPort,
@@ -98,10 +123,15 @@ async function allocatePorts() {
     };
 
     if (process.argv[2] === "get") {
-      console.log("Using PORT environment variable:");
+      console.log("Using PORT environment variable as preferred base:");
       console.log(`Frontend: ${ports.frontend}`);
       console.log(`Backend: ${ports.backend}`);
       console.log(`Preview Proxy: ${ports.preview_proxy}`);
+      if (frontendPort !== requestedFrontendPort) {
+        console.log(
+          `Requested frontend port ${requestedFrontendPort} is unavailable, using ${frontendPort} instead`
+        );
+      }
     }
 
     return ports;
