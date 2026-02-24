@@ -44,12 +44,20 @@ import { extractAttachmentIds } from '@/lib/attachmentUtils';
 
 const DRAFT_ISSUE_ID = '00000000-0000-0000-0000-000000000002';
 
+interface KanbanIssuePanelContainerProps {
+  issueResolution: 'resolving' | 'ready' | 'missing' | null;
+  onExpectIssueOpen: (issueId: string) => void;
+}
+
 /**
  * KanbanIssuePanelContainer manages the issue detail/create panel.
  * Uses ProjectContext and OrgContext for data and mutations.
  * Must be rendered within both OrgProvider and ProjectProvider.
  */
-export function KanbanIssuePanelContainer() {
+export function KanbanIssuePanelContainer({
+  issueResolution,
+  onExpectIssueOpen,
+}: KanbanIssuePanelContainerProps) {
   const { t } = useTranslation('common');
   // Navigation hook - URL is single source of truth
   const {
@@ -97,7 +105,7 @@ export function KanbanIssuePanelContainer() {
     isLoading: projectLoading,
   } = useProjectContext();
 
-  const { membersWithProfilesById } = useOrgContext();
+  const { isLoading: orgLoading, membersWithProfilesById } = useOrgContext();
 
   // Get action methods from actions context
   const { openStatusSelection, openPrioritySelection, openAssigneeSelection } =
@@ -105,27 +113,6 @@ export function KanbanIssuePanelContainer() {
 
   // Close panel by navigating to project URL (URL is single source of truth)
   const closeKanbanIssuePanel = closePanel;
-
-  // Close panel if selected issue doesn't exist in current project
-  useEffect(() => {
-    // Wait for core issue data to load
-    if (projectLoading) return;
-
-    // Only check in edit mode (when an issue should be selected)
-    if (kanbanCreateMode || !selectedKanbanIssueId) return;
-
-    // If the selected issue doesn't exist in this project, close the panel
-    const issueExists = issues.some((i) => i.id === selectedKanbanIssueId);
-    if (!issueExists) {
-      closeKanbanIssuePanel();
-    }
-  }, [
-    projectLoading,
-    kanbanCreateMode,
-    selectedKanbanIssueId,
-    issues,
-    closeKanbanIssuePanel,
-  ]);
 
   // Find selected issue if in edit mode
   const selectedIssue = useMemo(() => {
@@ -866,6 +853,7 @@ export function KanbanIssuePanelContainer() {
             issueId: syncedIssue.id,
           });
           if (!draftId) {
+            onExpectIssueOpen?.(syncedIssue.id);
             openIssue(syncedIssue.id);
           }
           return; // Don't open issue panel since we're navigating away
@@ -876,6 +864,7 @@ export function KanbanIssuePanelContainer() {
         deleteDraftIssueScratch().catch(console.error);
 
         // Open the newly created issue
+        onExpectIssueOpen?.(syncedIssue.id);
         openIssue(syncedIssue.id);
       } else {
         // Update existing issue - would use update mutation
@@ -905,6 +894,7 @@ export function KanbanIssuePanelContainer() {
     deleteDraftIssueScratch,
     getAttachmentIds,
     clearAttachments,
+    onExpectIssueOpen,
   ]);
 
   const handleCmdEnterSubmit = useCallback(() => {
@@ -957,10 +947,16 @@ export function KanbanIssuePanelContainer() {
     });
   }, [selectedKanbanIssueId, projectId]);
 
-  // Loading state should depend on core issue data only.
-  const isCoreLoading = projectLoading;
+  // Loading state
+  const isLoading = projectLoading || orgLoading;
+  const isResolvingExpectedIssue =
+    mode === 'edit' &&
+    selectedKanbanIssueId !== null &&
+    issueResolution === 'resolving';
+  const hasMissingIssueDataInEditMode =
+    mode === 'edit' && selectedKanbanIssueId !== null && selectedIssue === null;
 
-  if (isCoreLoading) {
+  if (isLoading || isResolvingExpectedIssue || hasMissingIssueDataInEditMode) {
     return (
       <div className="flex items-center justify-center h-full bg-secondary">
         <p className="text-low">{t('states.loading')}</p>
@@ -988,7 +984,7 @@ export function KanbanIssuePanelContainer() {
       onCmdEnterSubmit={handleCmdEnterSubmit}
       onCreateTag={handleCreateTag}
       isSubmitting={isSubmitting}
-      isLoading={isCoreLoading}
+      isLoading={isLoading}
       descriptionSaveStatus={
         mode === 'edit' ? descriptionSaveStatus : undefined
       }
