@@ -999,12 +999,13 @@ export const Actions = {
       } else {
         ctx.startDevServer();
         // Auto-open preview mode when starting dev server
-        useUiPreferencesStore
-          .getState()
-          .setRightMainPanelMode(
-            RIGHT_MAIN_PANEL_MODES.PREVIEW,
-            ctx.currentWorkspaceId ?? undefined
-          );
+        const workspaceId = ctx.currentWorkspaceId;
+        if (!workspaceId) return;
+
+        const uiPreferences = useUiPreferencesStore.getState();
+        uiPreferences.setWorkspacePanelState(workspaceId, {
+          rightMainPanelMode: RIGHT_MAIN_PANEL_MODES.PREVIEW,
+        });
       }
     },
   },
